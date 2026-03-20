@@ -662,25 +662,110 @@ function pgInvOps(){
 
 function pgInvLiq(){
   const c=gic(CU.id);const liqs=c?DB.liqs.filter(l=>l.contractId===c.id):[];
-  return`<div class="ph"><div><div class="ph-title">Mis liquidaciones</div><div class="ph-sub">Historial y detalle de liquidaciones recibidas</div></div></div>
+  return`<div class="ph"><div><div class="ph-title">Mis liquidaciones</div><div class="ph-sub">Historial y certificados descargables</div></div></div>
   ${liqs.length===0?'<div class="card"><div class="card-body"><div class="empty">Sin liquidaciones emitidas todavía.</div></div></div>':''}
   ${liqs.map(l=>{const tot=(l.netBenefit||0)+(l.capitalReturn||0);
     return`<div class="card"><div class="card-header">
-    <div><div class="card-title">Liquidación · ${fmtD(l.date)}</div><div class="ts tm" style="margin-top:3px">Período: ${l.period||'—'} · <span class="tag">LIQ-${l.id.slice(-5).toUpperCase()}</span></div></div>
-    <div style="font-size:20px;font-weight:700;color:var(--gold)">${fmt(tot)}</div>
+    <div>
+      <div class="card-title">Liquidación · ${fmtD(l.date)}</div>
+      <div class="ts tm" style="margin-top:3px">Período: ${l.period||'—'} · <span class="tag">LIQ-${l.id.slice(-5).toUpperCase()}</span></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <div style="font-size:20px;font-weight:700;color:var(--gold)">${fmt(tot)}</div>
+      <button class="btn btn-ghost btn-sm" onclick="downloadLiq('${l.id}')" style="display:flex;align-items:center;gap:5px">⬇ Descargar PDF</button>
+    </div>
     </div>
     <div class="card-body"><div class="liq-box">
       <div class="liq-head">Desglose de la liquidación</div>
+      ${(l.vehicles||[]).length>0?`<div class="lr"><span>Vehículos liquidados</span><span style="font-size:11px;text-align:right">${l.vehicles.join(' · ')}</span></div>`:''}
       <div class="lr"><span>Beneficio neto de las operaciones</span><span style="font-weight:600">${fmt(l.benefitBase||0)}</span></div>
       <div class="lr"><span>Tu participación del 50% (bruto)</span><span style="font-weight:600">${fmt(l.grossBenefit)}</span></div>
       <div class="lr lred"><span>Retención IRPF 19% → Hacienda</span><span>– ${fmt(l.retention)}</span></div>
       <div class="lr"><span>Beneficio neto transferido</span><span style="font-weight:600;color:var(--green)">${fmt(l.netBenefit)}</span></div>
-      <div class="lr"><span>Devolución de aportación</span><span style="font-weight:600">${fmt(l.capitalReturn)}</span></div>
+      ${l.capitalReturn>0?`<div class="lr"><span>Devolución de aportación</span><span style="font-weight:600">${fmt(l.capitalReturn)}</span></div>`:''}
       <div class="lr tot"><span>TOTAL recibido en tu cuenta</span><span>${fmt(tot)}</span></div>
     </div>
     ${l.notes?`<div class="alert a-info" style="margin-top:12px;margin-bottom:0">${l.notes}</div>`:''}
     </div></div>`;}).join('')}`;
 }
+
+function downloadLiq(liqId){
+  const l=DB.liqs.find(x=>x.id===liqId);if(!l)return;
+  const c=DB.contracts.find(x=>x.id===l.contractId);
+  const inv=c?DB.users.find(u=>u.id===c.investorId):null;
+  const tot=(l.netBenefit||0)+(l.capitalReturn||0);
+  const ref='LIQ-'+l.id.slice(-5).toUpperCase();
+  const vehs=(l.operationIds||[]).map(oid=>{
+    const op=DB.ops.find(o=>o.id===oid);if(!op)return'';
+    const ge=totalExp(op);const bn=cbn(op);
+    return`<tr><td><strong>${vLabel(op)}</strong>${op.matricula?` <span style="font-family:monospace;background:#f0f0f0;padding:1px 5px;border-radius:3px">${op.matricula}</span>`:''}</td>
+    <td style="text-align:right">${fmt(op.buyPrice)}</td><td style="text-align:right">${fmt(ge)}</td>
+    <td style="text-align:right">${fmt(op.sellPrice)}</td>
+    <td style="text-align:right;font-weight:700;color:#9A7B2F">${fmt(bn)}</td></tr>`;
+  }).join('');
+  const html=`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+<title>Certificado Liquidación ${ref}</title>
+<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;color:#1C1C1C;padding:30px;font-size:12px;max-width:800px;margin:0 auto}
+.top{height:4px;background:linear-gradient(90deg,#9A7B2F,#C4A44A,#9A7B2F);border-radius:2px;margin-bottom:22px}
+.hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid #ddd}
+.emp h1{font-size:17px;font-weight:700;margin-bottom:3px}.emp p{font-size:11px;color:#777}
+.ref{text-align:right;background:#F5F0E8;padding:12px 16px;border-radius:8px;border-left:4px solid #9A7B2F}
+.ref .t{font-size:12px;font-weight:700;color:#9A7B2F;margin-bottom:4px}.ref p{font-size:11px;color:#555;margin-top:2px}
+h2{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#9A7B2F;margin:16px 0 7px;padding-bottom:4px;border-bottom:1px solid #eee}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.fld{background:#F9F7F4;padding:8px 11px;border-radius:6px}
+.fld label{font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:#888;display:block;margin-bottom:2px}
+.fld span{font-size:12px;font-weight:600}
+table{width:100%;border-collapse:collapse;margin-top:3px}
+th{background:#1C1C1C;color:#C4A44A;padding:7px 9px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.4px}
+td{padding:8px 9px;border-bottom:1px solid #f0ece4;font-size:11px}
+.rr td:last-child{color:#8B1A1A;font-weight:700}.rg td:last-child{color:#1A5C1A;font-weight:700}
+.tot-box{background:#1C1C1C;color:#fff;padding:14px 18px;border-radius:8px;display:flex;justify-content:space-between;align-items:center;margin-top:14px}
+.tot-box .lb{font-size:13px;font-weight:700}.tot-box .am{font-size:21px;font-weight:700;color:#C4A44A}
+.note{background:#FFF8E1;border-left:3px solid #C4A44A;padding:7px 11px;border-radius:4px;font-size:10px;color:#666;margin-top:9px}
+.fms{display:grid;grid-template-columns:1fr 1fr;gap:28px;margin-top:22px}
+.fm{border:1px solid #ddd;border-radius:8px;padding:13px;text-align:center}
+.fm .ft{font-size:10px;font-weight:700;text-transform:uppercase;color:#9A7B2F;margin-bottom:3px}
+.fm .fn{font-size:12px;font-weight:600;margin-bottom:2px}.fm .fs{font-size:11px;color:#777}
+.fm .fl{border-top:1px solid #999;margin:42px 10px 7px}.fm .fl2{font-size:10px;color:#999}
+.footer{margin-top:18px;padding-top:13px;border-top:1px solid #eee;text-align:center;font-size:10px;color:#aaa}
+.pbtn{background:#9A7B2F;color:#fff;border:none;padding:9px 22px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;margin-bottom:14px}
+@media print{.np{display:none}body{padding:15px}}</style></head><body>
+<div class="np" style="text-align:right;margin-bottom:8px"><button class="pbtn" onclick="window.print()">🖨 Imprimir / Guardar como PDF</button></div>
+<div class="top"></div>
+<div class="hdr"><div class="emp"><h1>AUTO GALLERY PREMIUM AL, S.L.</h1><p>CIF: B87426383</p><p style="margin-top:3px;color:#aaa">Certificado de Liquidación y Retención · Arts. 239-243 C.Com.</p></div>
+<div class="ref"><div class="t">CERTIFICADO DE LIQUIDACIÓN</div><p>Ref: <strong>${ref}</strong></p><p>Fecha: <strong>${fmtD(l.date)}</strong></p><p>Período: <strong>${l.period||'—'}</strong></p></div></div>
+<h2>Datos de las partes</h2>
+<div class="grid">
+  <div class="fld"><label>Gestor (Retenedor)</label><span>Auto Gallery Premium AL, S.L. · CIF B87426383</span></div>
+  <div class="fld"><label>Cuenta-Partícipe</label><span>${inv?inv.name:'—'}</span></div>
+  <div class="fld"><label>DNI / CIF del Partícipe</label><span>${inv&&inv.dni?inv.dni:'—'}</span></div>
+  <div class="fld"><label>IBAN del Partícipe</label><span>${inv&&inv.iban?inv.iban:'—'}</span></div>
+</div>
+<h2>Vehículos liquidados</h2>
+<table><tr><th>Vehículo</th><th style="text-align:right">P. compra</th><th style="text-align:right">Gastos</th><th style="text-align:right">P. venta</th><th style="text-align:right">Benef. op.</th></tr>${vehs}</table>
+<h2>Cálculo y liquidación</h2>
+<table>
+<tr><td>Beneficio neto total de las operaciones</td><td style="text-align:right;font-weight:600">${fmt(l.benefitBase||0)}</td></tr>
+<tr><td>Porcentaje de participación del Partícipe</td><td style="text-align:right">50 %</td></tr>
+<tr><td><strong>Beneficio bruto del Partícipe (antes de retención)</strong></td><td style="text-align:right;font-weight:700">${fmt(l.grossBenefit)}</td></tr>
+<tr class="rr"><td>(–) Retención IRPF 19% · Rendim. Capital Mobiliario · Art. 75 RIRPF → ingresada a Hacienda (Mod. 123)</td><td style="text-align:right">– ${fmt(l.retention)}</td></tr>
+<tr class="rg"><td><strong>Beneficio neto transferido al Partícipe</strong></td><td style="text-align:right">${fmt(l.netBenefit)}</td></tr>
+${l.capitalReturn>0?`<tr><td>Devolución de aportación inicial</td><td style="text-align:right;font-weight:600">${fmt(l.capitalReturn)}</td></tr>`:''}
+</table>
+<div class="tot-box"><div class="lb">TOTAL RECIBIDO EN CUENTA BANCARIA</div><div class="am">${fmt(tot)}</div></div>
+${l.notes?`<div class="note">📝 ${l.notes}</div>`:''}
+<div class="note" style="margin-top:8px">⚠ Este documento NO constituye factura (RD 1619/2012). Los rendimientos proceden de la cesión de capitales propios. El Partícipe puede deducirse la retención en su declaración anual de IRPF o IS.</div>
+<h2 style="margin-top:20px">Conformidad y firmas</h2>
+<div class="fms">
+  <div class="fm"><div class="ft">El Gestor (Retenedor)</div><div class="fn">Auto Gallery Premium AL, S.L.</div><div class="fs">CIF: B87426383</div><div class="fl"></div><div class="fl2">Firma y sello</div></div>
+  <div class="fm"><div class="ft">El Cuenta-Partícipe (Perceptor)</div><div class="fn">${inv?inv.name:'[Inversor]'}</div><div class="fs">${inv&&inv.dni?'DNI: '+inv.dni:'DNI: —'}</div><div class="fl"></div><div class="fl2">Firma y conformidad</div></div>
+</div>
+<div class="footer">Auto Gallery Premium AL, S.L. · CIF B87426383 · Generado el ${new Date().toLocaleDateString('es-ES')} · ${ref}</div>
+</body></html>`;
+  const w=window.open('','_blank');w.document.write(html);w.document.close();
+}
+
 
 function pgInvProf(){
   const inv=CU;
@@ -941,33 +1026,82 @@ function sso(oid){
 }
 
 function mgl(iid){
-  const c=gic(iid),ulops=DB.ops.filter(o=>o.contractId===c.id&&o.status==='sold'&&!isLiq(o.id));
+  const c=gic(iid);
+  const ulops=DB.ops.filter(o=>o.contractId===c.id&&o.status==='sold'&&!isLiq(o.id));
   const inv=DB.users.find(u=>u.id===iid);
-  const tbn=ulops.reduce((s,op)=>s+cbn(op),0);const pb=tbn*0.5;const ret=pb*0.19;const neto=pb-ret;
+  if(!ulops.length){alert('No hay vehículos vendidos pendientes de liquidar.');return;}
   om(`<div class="mt2">Generar liquidación — ${inv.name}</div>
-  <div class="fr"><div class="ff"><label>Período</label><input id="l-pe" placeholder="Ene–Jun 2025"></div>
-  <div class="ff"><label>Fecha</label><input id="l-dt" type="date" value="${new Date().toISOString().split('T')[0]}"></div></div>
-  <div class="ff"><label>Devolución de capital (€)</label><input id="l-cp" type="number" value="0">
-  <div class="hint">0 si el capital se reinvierte en nuevas operaciones</div></div>
+  <div class="ff"><label>Selecciona los vehículos a liquidar</label>
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;margin-top:4px">
+      ${ulops.map((op,i)=>{const bn=cbn(op);const ge=totalExp(op);return`
+      <label style="display:flex;align-items:center;gap:12px;padding:11px 14px;cursor:pointer;border-bottom:${i<ulops.length-1?'1px solid var(--border)':'none'};transition:background .12s" onmouseover="this.style.background='var(--surface3)'" onmouseout="this.style.background=''">
+        <input type="checkbox" id="lchk-${op.id}" checked onchange="recalcLiq('${iid}')" style="width:15px;height:15px;accent-color:var(--gold);cursor:pointer">
+        <div style="flex:1">
+          <div style="font-weight:600;font-size:12px;color:var(--text)">${vLabel(op)}</div>
+          <div style="font-size:11px;color:var(--text2)">Vendido ${fmtD(op.sellDate)} · Precio: ${fmt(op.sellPrice)} · Gastos: ${fmt(ge)}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-size:12px;font-weight:700;color:var(--gold)">${fmt(bn)}</div>
+          <div style="font-size:10px;color:var(--text2)">benef. op.</div>
+        </div>
+      </label>`}).join('')}
+    </div>
+  </div>
+  <div class="fr">
+    <div class="ff"><label>Período</label><input id="l-pe" placeholder="Ene–Jun 2025"></div>
+    <div class="ff"><label>Fecha</label><input id="l-dt" type="date" value="${new Date().toISOString().split('T')[0]}"></div>
+  </div>
+  <div class="ff"><label>Devolución de capital (€)</label>
+    <input id="l-cp" type="number" value="0" oninput="recalcLiq('${iid}')">
+    <div class="hint">0 si el capital se reinvierte en nuevas operaciones</div>
+  </div>
   <div class="ff"><label>Nota para el inversor</label><input id="l-nt" placeholder="Ej: La aportación se reinvierte en el siguiente vehículo."></div>
-  <div class="alert a-info" style="margin:12px 0"><strong>Operaciones a liquidar:</strong> ${ulops.map(o=>o.vehicle).join(', ')||'—'}</div>
-  <div class="liq-box">
-    <div class="liq-head">Resumen de la liquidación</div>
-    <div class="lr"><span>Beneficio neto total</span><span style="font-weight:600">${fmt(tbn)}</span></div>
+  <div id="liq-preview" style="margin-top:4px"></div>
+  <div class="mf">
+    <button class="btn btn-ghost" onclick="cm()">Cancelar</button>
+    <button class="btn btn-primary" onclick="sgl('${iid}','${ulops.map(o=>o.id).join(',')}')">Emitir liquidación</button>
+  </div>`);
+  recalcLiq(iid);
+}
+
+function recalcLiq(iid){
+  const c=gic(iid);
+  const ulops=DB.ops.filter(o=>o.contractId===c.id&&o.status==='sold'&&!isLiq(o.id));
+  const selected=ulops.filter(op=>{const chk=document.getElementById('lchk-'+op.id);return chk&&chk.checked;});
+  const tbn=selected.reduce((s,op)=>s+cbn(op),0);
+  const pb=tbn*0.5;const ret=pb*0.19;const neto=pb-ret;
+  const cap=parseFloat(document.getElementById('l-cp')?.value)||0;
+  const prev=document.getElementById('liq-preview');if(!prev)return;
+  if(!selected.length){prev.innerHTML='<div class="alert a-warn" style="margin-bottom:0">Selecciona al menos un vehículo.</div>';return;}
+  prev.innerHTML=`<div class="liq-box">
+    <div class="liq-head">Vista previa · ${selected.length} vehículo(s) seleccionado(s)</div>
+    <div class="lr"><span>Beneficio neto total de las operaciones</span><span style="font-weight:600">${fmt(tbn)}</span></div>
     <div class="lr"><span>Parte del inversor (50%)</span><span>${fmt(pb)}</span></div>
     <div class="lr lred"><span>Retención IRPF 19% → Hacienda</span><span>– ${fmt(ret)}</span></div>
-    <div class="lr tot"><span>Neto a transferir al inversor</span><span>${fmt(neto)}</span></div>
-  </div>
-  <div class="mf"><button class="btn btn-ghost" onclick="cm()">Cancelar</button><button class="btn btn-primary" onclick="sgl('${iid}','${ulops.map(o=>o.id).join(',')}',${tbn})">Emitir liquidación</button></div>`);
+    <div class="lr"><span>Beneficio neto a transferir</span><span style="font-weight:600;color:var(--green)">${fmt(neto)}</span></div>
+    ${cap>0?`<div class="lr"><span>Devolución de capital</span><span style="font-weight:600">${fmt(cap)}</span></div>`:''}
+    <div class="lr tot"><span>TOTAL AL INVERSOR</span><span>${fmt(neto+cap)}</span></div>
+  </div>`;
 }
-function sgl(iid,oids,tbn){
-  const c=gic(iid);const pb=tbn*0.5;const ret=pb*0.19;const neto=pb-ret;
+
+async function sgl(iid, allOidsStr){
+  const c=gic(iid);
+  const allOids=allOidsStr?allOidsStr.split(',').filter(Boolean):[];
+  const selectedOids=allOids.filter(oid=>{const chk=document.getElementById('lchk-'+oid);return chk&&chk.checked;});
+  if(!selectedOids.length){alert('Selecciona al menos un vehículo');return;}
+  const selectedOps=selectedOids.map(oid=>DB.ops.find(o=>o.id===oid)).filter(Boolean);
+  const tbn=selectedOps.reduce((s,op)=>s+cbn(op),0);
+  const pb=tbn*0.5;const ret=pb*0.19;const neto=pb-ret;
   const cap=parseFloat(document.getElementById('l-cp').value)||0;
-  DB.liqs.push({id:gid(),contractId:c.id,date:document.getElementById('l-dt').value,
-    period:document.getElementById('l-pe').value,operationIds:oids?oids.split(',').filter(Boolean):[],
+  const liq={id:gid(),contractId:c.id,
+    date:document.getElementById('l-dt').value,
+    period:document.getElementById('l-pe').value,
+    operationIds:selectedOids,
+    vehicles:selectedOps.map(op=>vLabel(op)),
     benefitBase:tbn,grossBenefit:pb,retention:ret,netBenefit:neto,
-    capitalReturn:cap,notes:document.getElementById('l-nt').value});
-  sdb();cm();sp(AP);
+    capitalReturn:cap,notes:document.getElementById('l-nt').value};
+  DB.liqs.push(liq);
+  await sdb();cm();sp(AP);
 }
 
 // ── EDIT & DELETE VEHICLE ─────────────────────────────────
