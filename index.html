@@ -1,0 +1,1099 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Auto Gallery Premium — Panel de Inversores</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+/* ── SETUP SCREEN ──────────────────────── */
+#setup-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0A0A0A 0%,#141414 50%,#0F0F0F 100%)}
+.setup-box{background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-lg);padding:36px;width:480px;max-width:95vw;position:relative;overflow:hidden}
+.setup-box::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--gold),transparent)}
+.setup-step{display:flex;align-items:flex-start;gap:14px;margin-bottom:20px;padding:14px;background:var(--surface2);border-radius:var(--radius-sm)}
+.setup-num{width:26px;height:26px;border-radius:50%;background:var(--gold);color:#0A0A0A;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+.setup-step-text{font-size:12px;color:var(--text2);line-height:1.6}
+.setup-step-text b{color:var(--text);font-weight:600}
+.setup-step-text a{color:var(--gold);text-decoration:none}
+.setup-step-text a:hover{text-decoration:underline}
+.setup-err{color:var(--red);font-size:12px;margin-top:6px;min-height:18px}
+/* ── LOADING OVERLAY ───────────────────── */
+#loading{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px}
+.spinner{width:36px;height:36px;border:3px solid var(--border2);border-top-color:var(--gold);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#loading p{font-size:13px;color:var(--text2)}
+/* ── SYNC STATUS ───────────────────────── */
+#sync-status{position:fixed;bottom:16px;right:16px;background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:8px 14px;font-size:11px;color:var(--text2);display:flex;align-items:center;gap:7px;transition:opacity .3s;opacity:0;pointer-events:none;z-index:50}
+#sync-status.show{opacity:1}
+#sync-dot{width:7px;height:7px;border-radius:50%;background:var(--green);flex-shrink:0}
+#sync-dot.saving{background:var(--amber);animation:pulse .6s infinite}
+#sync-dot.error{background:var(--red)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+</style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',system-ui,sans-serif;background:#0F0F0F;color:#E8E3D8;min-height:100vh;font-size:13px}
+.hidden{display:none!important}
+:root{
+  --gold:#C9A84C;--gold-dim:#8A6A28;--gold-bg:rgba(201,168,76,.08);
+  --surface:#1A1A1A;--surface2:#222;--surface3:#2A2A2A;
+  --border:rgba(255,255,255,.07);--border2:rgba(255,255,255,.12);
+  --text:#E8E3D8;--text2:#A09880;--text3:#5A5040;
+  --green:#3ECF6A;--green-bg:rgba(62,207,106,.1);
+  --red:#F06060;--red-bg:rgba(240,96,96,.1);
+  --amber:#F0B429;--amber-bg:rgba(240,180,41,.1);
+  --radius:12px;--radius-sm:8px;--radius-lg:16px;
+}
+#login-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0A0A0A 0%,#141414 50%,#0F0F0F 100%)}
+.login-wrap{width:380px}
+.login-logo{text-align:center;margin-bottom:40px}
+.brand{display:inline-flex;align-items:center;gap:10px;margin-bottom:16px}
+.brand-icon{width:44px;height:44px;background:var(--gold);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#0A0A0A}
+.brand-text h1{font-size:18px;font-weight:700;color:var(--text);letter-spacing:-.3px;text-align:left}
+.brand-text p{font-size:11px;color:var(--text2);text-align:left}
+.login-card{background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-lg);padding:32px;position:relative;overflow:hidden}
+.login-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--gold),transparent)}
+.field{margin-bottom:16px}
+.field label{display:block;font-size:10px;font-weight:600;color:var(--text2);margin-bottom:7px;letter-spacing:.5px;text-transform:uppercase}
+.field input{width:100%;padding:11px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;color:var(--text);font-family:inherit;outline:none;transition:border .15s}
+.field input:focus{border-color:var(--gold-dim)}
+.field input::placeholder{color:var(--text3)}
+.btn-login{width:100%;padding:12px;background:var(--gold);color:#0A0A0A;border:none;border-radius:var(--radius-sm);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:4px;transition:all .15s}
+.btn-login:hover{background:#D4B05C;transform:translateY(-1px)}
+.login-err{color:var(--red);font-size:12px;text-align:center;margin-top:8px;min-height:18px}
+.login-demo{margin-top:20px;padding-top:16px;border-top:1px solid var(--border);text-align:center;font-size:11px;color:var(--text3)}
+.login-demo b{color:var(--text2)}
+/* HEADER */
+#app-header{height:56px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:16px;position:sticky;top:0;z-index:100}
+.h-logo{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.h-icon{width:30px;height:30px;background:var(--gold);border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#0A0A0A}
+.h-logo span{font-size:13px;font-weight:700;color:var(--text)}
+.h-spacer{flex:1}
+.h-user{display:flex;align-items:center;gap:10px}
+.h-avatar{width:30px;height:30px;border-radius:50%;background:var(--gold-bg);border:1px solid var(--gold-dim);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--gold)}
+.h-name{font-size:12px;color:var(--text2);font-weight:500}
+.btn-logout{background:var(--surface2);border:1px solid var(--border);color:var(--text2);padding:5px 12px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .12s}
+.btn-logout:hover{border-color:var(--border2);color:var(--text)}
+/* LAYOUT */
+#app-main{display:flex;min-height:calc(100vh - 56px)}
+#sidebar{width:210px;background:var(--surface);border-right:1px solid var(--border);padding:16px 10px;flex-shrink:0}
+.s-label{font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;padding:6px 10px;margin-bottom:2px}
+.s-item{display:flex;align-items:center;gap:9px;padding:9px 10px;font-size:12px;color:var(--text2);cursor:pointer;border-radius:var(--radius-sm);font-weight:500;transition:all .12s;margin-bottom:1px}
+.s-item:hover{background:var(--surface2);color:var(--text)}
+.s-item.active{background:var(--gold-bg);color:var(--gold);font-weight:600}
+.s-icon{font-size:13px;width:18px;text-align:center;opacity:.5}
+.s-item.active .s-icon,.s-item:hover .s-icon{opacity:.9}
+#content{flex:1;padding:24px;overflow-y:auto;max-width:1000px}
+/* PAGE */
+.ph{margin-bottom:24px;display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.ph-title{font-size:20px;font-weight:700;color:var(--text);letter-spacing:-.3px;margin-bottom:3px}
+.ph-sub{font-size:12px;color:var(--text2)}
+/* METRICS */
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:22px}
+.metric{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;position:relative;overflow:hidden}
+.metric::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--m-color,var(--gold));opacity:.3}
+.m-label{font-size:10px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px}
+.m-val{font-size:22px;font-weight:700;color:var(--text);letter-spacing:-.5px;line-height:1}
+.m-val.gold{color:var(--gold)}.m-val.green{color:var(--green)}.m-val.red{color:var(--red)}.m-val.amber{color:var(--amber)}.m-val.sm{font-size:16px}
+/* CARDS */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:14px;overflow:hidden}
+.card-header{padding:16px 18px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px}
+.card-title{font-size:13px;font-weight:600;color:var(--text)}
+.card-body{padding:18px}
+/* TABLE */
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12px}
+thead tr{border-bottom:1px solid var(--border2)}
+th{padding:10px 14px;text-align:left;font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px}
+td{padding:11px 14px;border-bottom:1px solid var(--border);color:var(--text2)}
+td strong{color:var(--text);font-weight:600}
+tr:last-child td{border-bottom:none}
+tbody tr:hover td{background:var(--surface2)}
+/* BADGES */
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:10px;font-weight:600}
+.badge::before{content:'';width:5px;height:5px;border-radius:50%;background:currentColor;opacity:.7}
+.b-active{background:var(--green-bg);color:var(--green)}
+.b-reserved{background:var(--amber-bg);color:var(--amber)}
+.b-sold{background:var(--surface3);color:var(--text2)}
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:var(--radius-sm);font-size:12px;font-weight:600;cursor:pointer;border:none;font-family:inherit;transition:all .12s}
+.btn-primary{background:var(--gold);color:#0A0A0A}.btn-primary:hover{background:#D4B05C}
+.btn-ghost{background:var(--surface2);color:var(--text2);border:1px solid var(--border)}.btn-ghost:hover{border-color:var(--border2);color:var(--text)}
+.btn-success{background:var(--green-bg);color:var(--green);border:1px solid rgba(62,207,106,.2)}.btn-success:hover{background:rgba(62,207,106,.18)}
+.btn-sm{padding:5px 11px;font-size:11px;border-radius:6px}
+/* MODAL */
+.mo{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+.mb{background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius-lg);padding:28px;width:500px;max-width:95vw;max-height:90vh;overflow-y:auto;position:relative}
+.mb::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--gold),transparent);border-radius:var(--radius-lg) var(--radius-lg) 0 0}
+.mt2{font-size:16px;font-weight:700;color:var(--text);margin-bottom:22px;padding-bottom:14px;border-bottom:1px solid var(--border)}
+.mf{display:flex;gap:8px;justify-content:flex-end;margin-top:22px;padding-top:16px;border-top:1px solid var(--border)}
+.fr{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.ff{margin-bottom:14px}
+.ff label{display:block;font-size:10px;font-weight:600;color:var(--text2);margin-bottom:6px;letter-spacing:.5px;text-transform:uppercase}
+.ff input,.ff select{width:100%;padding:9px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:12px;color:var(--text);font-family:inherit;outline:none;transition:border .12s}
+.ff input:focus,.ff select:focus{border-color:var(--gold-dim)}
+.ff input::placeholder{color:var(--text3)}
+.ff select option{background:var(--surface2)}
+.hint{font-size:10px;color:var(--text3);margin-top:3px}
+.gl{border:none;border-top:1px solid var(--border);margin:16px 0}
+/* ALERTS */
+.alert{padding:12px 14px;border-radius:var(--radius-sm);font-size:12px;margin-bottom:14px;border-left:3px solid}
+.a-info{background:var(--gold-bg);border-color:var(--gold-dim);color:var(--text2)}
+.a-warn{background:var(--amber-bg);border-color:var(--amber);color:var(--amber)}
+.a-danger{background:var(--red-bg);border-color:var(--red);color:var(--red)}
+.a-success{background:var(--green-bg);border-color:var(--green);color:var(--green)}
+/* LIQ BOX */
+.liq-box{background:#111;border:1px solid var(--border2);border-radius:var(--radius);overflow:hidden}
+.liq-head{padding:10px 16px;background:var(--surface2);font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border)}
+.lr{display:flex;justify-content:space-between;align-items:center;padding:10px 16px;font-size:12px;color:var(--text2);border-bottom:1px solid var(--border)}
+.lr:last-child{border-bottom:none}
+.lr.lred span:last-child{color:var(--red);font-weight:600}
+.lr.tot{background:var(--gold-bg);border-top:1px solid var(--gold-dim)}
+.lr.tot span{color:var(--gold);font-weight:700;font-size:13px}
+/* INVESTOR CARDS */
+.inv-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;margin-bottom:10px;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.inv-card:hover{border-color:var(--border2);background:var(--surface2)}
+.inv-avatar{width:44px;height:44px;border-radius:50%;background:var(--gold-bg);border:2px solid var(--gold-dim);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:var(--gold);flex-shrink:0}
+.inv-meta h3{font-size:14px;font-weight:600;color:var(--text);margin-bottom:3px}
+.inv-meta p{font-size:11px;color:var(--text2)}
+/* DETAIL */
+.detail-hero{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:22px;margin-bottom:16px;position:relative;overflow:hidden}
+.detail-hero::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--gold),transparent)}
+.dh-inner{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.dh-avatar{width:52px;height:52px;border-radius:50%;background:var(--gold-bg);border:2px solid var(--gold-dim);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:var(--gold);flex-shrink:0}
+.dh-info h2{font-size:18px;font-weight:700;color:var(--text);letter-spacing:-.3px}
+.dh-info p{font-size:12px;color:var(--text2);margin-top:3px}
+.dh-actions{margin-left:auto;display:flex;gap:8px}
+.back{display:inline-flex;align-items:center;gap:6px;color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;margin-bottom:18px;padding:6px 10px;border-radius:6px;transition:all .12s}
+.back:hover{background:var(--surface2);color:var(--text)}
+.empty{text-align:center;padding:32px;color:var(--text3);font-size:13px}
+.tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;background:var(--surface2);color:var(--text2)}
+.s-label-divider{font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin:10px 0 8px}
+.flex{display:flex}.gap-8{gap:8px}.gap-12{gap:12px}.ac{align-items:center}.jb{justify-content:space-between}.fw{flex-wrap:wrap}
+.tg{color:var(--gold)}.tm{color:var(--text2)}.ts{font-size:11px}
+</style>
+</head>
+<body>
+
+<!-- SETUP SCREEN -->
+<div id="setup-screen" class="hidden">
+  <div class="setup-box">
+    <div style="text-align:center;margin-bottom:28px">
+      <div style="display:inline-flex;align-items:center;gap:10px;margin-bottom:12px">
+        <div style="width:38px;height:38px;background:var(--gold);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#0A0A0A">AG</div>
+        <div style="text-align:left"><div style="font-size:16px;font-weight:700;color:var(--text)">Auto Gallery Premium</div><div style="font-size:11px;color:var(--text2)">Primera configuración</div></div>
+      </div>
+      <p style="font-size:12px;color:var(--text2);line-height:1.6">Conecta la app a tu base de datos Supabase siguiendo estos pasos:</p>
+    </div>
+    <div class="setup-step"><div class="setup-num">1</div><div class="setup-step-text">Crea cuenta gratuita en <a href="https://supabase.com" target="_blank">supabase.com</a> y crea un <b>New project</b>.</div></div>
+    <div class="setup-step"><div class="setup-num">2</div><div class="setup-step-text">Ve a <b>SQL Editor</b> y ejecuta el archivo <b>supabase_setup.sql</b> que te hemos proporcionado.</div></div>
+    <div class="setup-step"><div class="setup-num">3</div><div class="setup-step-text">Ve a <b>Settings → API</b>, copia la <b>Project URL</b> y la <b>anon public key</b> y pégalas aquí:</div></div>
+    <div class="field"><label>Project URL</label><input id="cfg-url" placeholder="https://xxxxxxxxxxxx.supabase.co"></div>
+    <div class="field"><label>Anon public key</label><input id="cfg-key" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."></div>
+    <div class="setup-err" id="cfg-err"></div>
+    <button class="btn-login" onclick="saveConfig()">Conectar y guardar →</button>
+    <p style="font-size:10px;color:var(--text3);text-align:center;margin-top:14px">Las claves se guardan en tu navegador. La anon key es pública y segura de incluir en el frontend.</p>
+  </div>
+</div>
+
+<!-- LOADING OVERLAY -->
+<div id="loading" class="hidden"><div class="spinner"></div><p id="loading-txt">Conectando...</p></div>
+
+<!-- SYNC STATUS -->
+<div id="sync-status"><div id="sync-dot"></div><span id="sync-txt">Guardado</span></div>
+
+<div id="login-screen">
+  <div class="login-wrap">
+    <div class="login-logo">
+      <div class="brand">
+        <div class="brand-icon">AG</div>
+        <div class="brand-text">
+          <h1>Auto Gallery Premium</h1>
+          <p>Gestión de inversores</p>
+        </div>
+      </div>
+    </div>
+    <div class="login-card">
+      <div class="field"><label>Usuario</label><input type="text" id="lu" placeholder="Introduce tu usuario" autocomplete="username"></div>
+      <div class="field"><label>Contraseña</label><input type="password" id="lp" placeholder="••••••••"></div>
+      <button class="btn-login" onclick="doLogin()">Iniciar sesión →</button>
+      <div class="login-err" id="lerr"></div>
+    </div>
+    <div class="login-demo">Demo · admin: <b>admin</b> / <b>admin123</b></div>
+  </div>
+</div>
+
+<div id="app" class="hidden">
+  <div id="app-header">
+    <div class="h-logo"><div class="h-icon">AG</div><span>Auto Gallery Premium AL</span></div>
+    <div class="h-spacer"></div>
+    <div class="h-user">
+      <div class="h-avatar" id="h-av"></div>
+      <span class="h-name" id="hun"></span>
+      <button class="btn-logout" onclick="doLogout()">Salir</button>
+    </div>
+  </div>
+  <div id="app-main">
+    <div id="sidebar">
+      <div id="anav" style="display:none">
+        <div class="s-label">Administración</div>
+        <div class="s-item" onclick="sp('adm-dash')"><span class="s-icon">⬡</span>Panel general</div>
+        <div class="s-item" onclick="sp('adm-inv')"><span class="s-icon">◎</span>Inversores</div>
+        <div class="s-item" onclick="sp('adm-ops')"><span class="s-icon">◈</span>Operaciones</div>
+        <div class="s-item" onclick="sp('adm-liq')"><span class="s-icon">◇</span>Liquidaciones</div>
+      </div>
+      <div id="inav" style="display:none">
+        <div class="s-label">Mi cuenta</div>
+        <div class="s-item" onclick="sp('inv-dash')"><span class="s-icon">⬡</span>Mi resumen</div>
+        <div class="s-item" onclick="sp('inv-ops')"><span class="s-icon">◈</span>Mis vehículos</div>
+        <div class="s-item" onclick="sp('inv-liq')"><span class="s-icon">◇</span>Mis liquidaciones</div>
+        <div class="s-item" onclick="sp('inv-prof')"><span class="s-icon">◎</span>Mis datos</div>
+      </div>
+    </div>
+    <div id="content"></div>
+  </div>
+</div>
+
+<div id="mo" class="mo hidden" onclick="cmo(event)"><div class="mb" id="mb"></div></div>
+
+<script>
+// ── SUPABASE CONFIG & DATA ────────────────────────────────
+const { createClient } = supabase;
+let sb = null;
+let DB={users:[],contracts:[],ops:[],liqs:[]};
+let CU=null,AP='',SID=null;
+
+function cfgGet(){try{return JSON.parse(localStorage.getItem('ag_cfg'));}catch(e){return null;}}
+function cfgSet(v){localStorage.setItem('ag_cfg',JSON.stringify(v));}
+
+function initSB(url,key){
+  sb = createClient(url, key);
+}
+
+function saveConfig(){
+  const url=document.getElementById('cfg-url').value.trim();
+  const key=document.getElementById('cfg-key').value.trim();
+  if(!url||!key){document.getElementById('cfg-err').textContent='Rellena los dos campos.';return;}
+  if(!url.startsWith('https://')){document.getElementById('cfg-err').textContent='La URL debe comenzar con https://';return;}
+  cfgSet({url,key});
+  initSB(url,key);
+  document.getElementById('setup-screen').classList.add('hidden');
+  startApp();
+}
+
+function showLoading(txt='Sincronizando...'){
+  document.getElementById('loading-txt').textContent=txt;
+  document.getElementById('loading').classList.remove('hidden');
+}
+function hideLoading(){document.getElementById('loading').classList.add('hidden');}
+
+let _syncTimer=null;
+function syncStatus(state,txt=''){
+  const el=document.getElementById('sync-status');
+  const dot=document.getElementById('sync-dot');
+  const t=document.getElementById('sync-txt');
+  dot.className='';
+  if(state==='saving'){dot.classList.add('saving');t.textContent='Guardando...';}
+  else if(state==='ok'){t.textContent=txt||'Guardado en Supabase';}
+  else if(state==='error'){dot.classList.add('error');t.textContent='Error al guardar';}
+  el.classList.add('show');
+  clearTimeout(_syncTimer);
+  if(state!=='saving') _syncTimer=setTimeout(()=>el.classList.remove('show'),3000);
+}
+
+async function loadDB(){
+  showLoading('Cargando datos...');
+  try{
+    const [r1,r2,r3,r4]=await Promise.all([
+      sb.from('app_data').select('value').eq('key','users').single(),
+      sb.from('app_data').select('value').eq('key','contracts').single(),
+      sb.from('app_data').select('value').eq('key','ops').single(),
+      sb.from('app_data').select('value').eq('key','liqs').single(),
+    ]);
+    DB.users    = r1.data?.value || [];
+    DB.contracts= r2.data?.value || [];
+    DB.ops      = r3.data?.value || [];
+    DB.liqs     = r4.data?.value || [];
+    if(!DB.users.find(u=>u.role==='admin')){
+      DB.users.push({id:'admin',username:'admin',password:'admin123',name:'Administrador',role:'admin'});
+      await sdb();
+    }
+  }catch(e){
+    console.error('Error cargando datos:',e);
+  }
+  hideLoading();
+}
+
+async function sdb(){
+  syncStatus('saving');
+  try{
+    await Promise.all([
+      sb.from('app_data').upsert({key:'users',    value:DB.users}),
+      sb.from('app_data').upsert({key:'contracts', value:DB.contracts}),
+      sb.from('app_data').upsert({key:'ops',       value:DB.ops}),
+      sb.from('app_data').upsert({key:'liqs',      value:DB.liqs}),
+    ]);
+    syncStatus('ok');
+  }catch(e){
+    syncStatus('error');
+    console.error('Error guardando:',e);
+  }
+}
+function gid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,5);}
+function fmt(n){return(n||0).toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2})+' €';}
+function fmtD(d){return d?new Date(d).toLocaleDateString('es-ES'):'—';}
+function ini(n){return(n||'').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();}
+function gic(iid){return DB.contracts.find(c=>c.investorId===iid&&c.status==='active')||DB.contracts.filter(c=>c.investorId===iid).sort((a,b)=>b.startDate>a.startDate?1:-1)[0];}
+function gco(cid){return DB.ops.filter(o=>o.contractId===cid);}
+function cbn(op){const ge=(op.expenses||[]).reduce((s,e)=>s+(e.amount||0),0);return(op.sellPrice||0)-(op.buyPrice||0)-ge;}
+function totalExp(op){return(op.expenses||[]).reduce((s,e)=>s+(e.amount||0),0);}
+// Combina marca + modelo + matrícula en una etiqueta legible
+function vLabel(op){
+  const parts=[op.marca,op.modelo,op.matricula].filter(Boolean);
+  return parts.length?parts.join(' · '):(op.vehicle||'—');
+}
+// Búsqueda: devuelve true si el texto coincide con cualquier campo del vehículo
+function vMatch(op,q){
+  if(!q)return true;
+  const t=q.toLowerCase();
+  return[op.marca,op.modelo,op.matricula,op.vehicle].some(f=>f&&f.toLowerCase().includes(t));
+}
+function isLiq(oid){return DB.liqs.some(l=>l.operationIds&&l.operationIds.includes(oid));}
+function gstat(iid){let tb=0,tr=0,tn=0;DB.contracts.filter(c=>c.investorId===iid).forEach(c=>{DB.liqs.filter(l=>l.contractId===c.id).forEach(l=>{tb+=l.grossBenefit||0;tr+=l.retention||0;tn+=l.netBenefit||0;});});return{tb,tr,tn};}
+
+// ── AUTH ──────────────────────────────────────────────────
+async function doLogin(){
+  const u=document.getElementById('lu').value.trim(),p=document.getElementById('lp').value;
+  document.getElementById('lerr').textContent='';
+  const user=DB.users.find(x=>x.username===u&&x.password===p);
+  if(!user){document.getElementById('lerr').textContent='Usuario o contraseña incorrectos';return;}
+  CU=user;
+  document.getElementById('login-screen').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  document.getElementById('hun').textContent=user.name;
+  document.getElementById('h-av').textContent=ini(user.name);
+  if(user.role==='admin'){document.getElementById('anav').style.display='block';sp('adm-dash');}
+  else{document.getElementById('inav').style.display='block';sp('inv-dash');}
+}
+document.addEventListener('keydown',e=>{if(e.key==='Enter'&&!document.getElementById('login-screen').classList.contains('hidden'))doLogin();});
+function doLogout(){
+  CU=null;
+  document.getElementById('login-screen').classList.remove('hidden');
+  document.getElementById('app').classList.add('hidden');
+  ['anav','inav'].forEach(id=>document.getElementById(id).style.display='none');
+  document.getElementById('lu').value='';document.getElementById('lp').value='';
+  document.getElementById('lerr').textContent='';
+}
+
+// ── NAV ───────────────────────────────────────────────────
+function sp(page){
+  AP=page;
+  document.querySelectorAll('.s-item').forEach(el=>el.classList.toggle('active',el.getAttribute('onclick')&&el.getAttribute('onclick').includes("'"+page+"'")));
+  const pages={'adm-dash':pgAdmDash,'adm-inv':pgAdmInv,'adm-ops':pgAdmOps,'adm-liq':pgAdmLiq,'inv-dash':pgInvDash,'inv-ops':pgInvOps,'inv-liq':pgInvLiq,'inv-prof':pgInvProf};
+  if(pages[page])document.getElementById('content').innerHTML=pages[page]();
+}
+
+// ── ADMIN PAGES ───────────────────────────────────────────
+function pgAdmDash(){
+  const invs=DB.users.filter(u=>u.role==='investor');
+  const ta=invs.reduce((s,i)=>{const c=gic(i.id);return s+(c?c.amount:0);},0);
+  const ao=DB.ops.filter(o=>o.status==='active').length;
+  const ro=DB.ops.filter(o=>o.status==='reserved').length;
+  const so=DB.ops.filter(o=>o.status==='sold').length;
+  const tl=DB.liqs.reduce((s,l)=>s+(l.netBenefit||0),0);
+  const resOps=DB.ops.filter(o=>o.status==='reserved');
+  return`<div class="ph"><div><div class="ph-title">Panel general</div><div class="ph-sub">Resumen global · Auto Gallery Premium AL</div></div></div>
+  <div class="metrics">
+    <div class="metric"><div class="m-label">Inversores</div><div class="m-val">${invs.length}</div></div>
+    <div class="metric" style="--m-color:var(--gold)"><div class="m-label">Capital gestionado</div><div class="m-val gold sm">${fmt(ta)}</div></div>
+    <div class="metric"><div class="m-label">Vehículos activos</div><div class="m-val">${ao}</div></div>
+    <div class="metric" style="--m-color:var(--amber)"><div class="m-label">Reservados</div><div class="m-val amber">${ro}</div></div>
+    <div class="metric" style="--m-color:var(--green)"><div class="m-label">Vendidos</div><div class="m-val green">${so}</div></div>
+    <div class="metric" style="--m-color:var(--gold)"><div class="m-label">Benef. liquidado</div><div class="m-val gold sm">${fmt(tl)}</div></div>
+  </div>
+  ${resOps.length>0?`<div class="card">
+    <div class="card-header"><span class="card-title">⚡ Vehículos reservados</span><span class="badge b-reserved">${resOps.length} pendientes</span></div>
+    <div class="tw"><table><thead><tr><th>Marca</th><th>Modelo</th><th>Matrícula</th><th>Inversor</th><th>P. compra</th><th>P. venta est.</th><th>Ben. neto inversor</th><th></th></tr></thead>
+    <tbody>${resOps.map(op=>{const c=DB.contracts.find(x=>x.id===op.contractId);const inv=c?DB.users.find(u=>u.id===c.investorId):null;
+      const bn=cbn(op);const pb=bn*0.5;const ret=pb*0.19;
+      return`<tr><td><strong>${op.marca||vLabel(op)}</strong></td><td>${op.modelo||'—'}</td>
+      <td><span style="font-family:monospace;font-size:11px;background:var(--surface2);padding:2px 6px;border-radius:4px">${op.matricula||'—'}</span></td>
+      <td>${inv?inv.name:'—'}</td><td>${fmt(op.buyPrice)}</td><td>${fmt(op.sellPrice)}</td>
+      <td style="color:var(--gold);font-weight:600">${fmt(pb-ret)}</td>
+      <td><button class="btn btn-success btn-sm" onclick="mso('${op.id}')">Marcar vendido</button></td></tr>`;}).join('')}</tbody></table></div>
+  </div>`:''}
+  <div class="card">
+    <div class="card-header"><span class="card-title">Inversores</span><button class="btn btn-primary btn-sm" onclick="mni()">+ Nuevo inversor</button></div>
+    ${invs.length===0?'<div class="card-body"><div class="empty">Crea el primer inversor para comenzar.</div></div>':''}
+    ${invs.length>0?`<div class="tw"><table><thead><tr><th>Inversor</th><th>Aportación</th><th>Utilizado</th><th>Disponible</th><th>Ops activas</th><th>Estado</th><th></th></tr></thead>
+    <tbody>${invs.map(inv=>{const c=gic(inv.id);const ops=c?gco(c.id):[];
+      const util=ops.filter(o=>o.status!=='sold').reduce((s,o)=>s+(o.buyPrice||0),0);
+      const libre=c?Math.max(0,(c.amount||0)-util):0;
+      const pct=c&&c.amount>0?Math.min(100,Math.round(util/c.amount*100)):0;
+      const libreColor=libre<=0?'var(--red)':libre<(c?c.amount*0.3:1)?'var(--amber)':'var(--green)';
+      return`<tr><td><strong>${inv.name}</strong><br><span class="ts tm">${inv.username}</span></td>
+      <td style="color:var(--gold);font-weight:600">${c?fmt(c.amount):'—'}</td>
+      <td>
+        ${c?`<span style="color:var(--text2)">${fmt(util)}</span>
+        <div style="margin-top:4px;height:3px;background:var(--surface3);border-radius:2px;width:80px">
+          <div style="height:100%;width:${pct}%;background:${pct>=90?'var(--red)':pct>=60?'var(--amber)':'var(--gold)'};border-radius:2px"></div>
+        </div>`:'—'}
+      </td>
+      <td style="font-weight:700;color:${libreColor}">${c?fmt(libre):'—'}</td>
+      <td>${ops.filter(o=>o.status!=='sold').length}</td>
+      <td><span class="badge ${c&&c.status==='active'?'b-active':'b-sold'}">${c?c.status==='active'?'Activo':'Cerrado':'Sin contrato'}</span></td>
+      <td><button class="btn btn-ghost btn-sm" onclick="vi('${inv.id}')">Ver detalle →</button></td></tr>`;}).join('')}</tbody></table></div>`:''}
+  </div>`;
+}
+
+function pgAdmInv(){
+  if(SID)return pgInvDetail(SID);
+  const invs=DB.users.filter(u=>u.role==='investor');
+  return`<div class="ph"><div><div class="ph-title">Inversores</div><div class="ph-sub">Gestión y seguimiento</div></div>
+  <button class="btn btn-primary" onclick="mni()">+ Nuevo inversor</button></div>
+  ${invs.length===0?'<div class="card"><div class="card-body"><div class="empty">No hay inversores registrados todavía.</div></div></div>':''}
+  ${invs.map(inv=>{const c=gic(inv.id);const ops=c?gco(c.id):[];const st=gstat(inv.id);
+    const util=ops.filter(o=>o.status!=='sold').reduce((s,o)=>s+(o.buyPrice||0),0);
+    const libre=c?Math.max(0,(c.amount||0)-util):0;
+    const pct=c&&c.amount>0?Math.min(100,Math.round(util/c.amount*100)):0;
+    const libreColor=libre<=0?'var(--red)':libre<(c?c.amount*0.3:1)?'var(--amber)':'var(--green)';
+    const libreLabel=libre<=0?'Sin capital disponible':libre<(c?c.amount*0.3:1)?'Poco disponible':'Disponible para operar';
+    return`<div class="inv-card" onclick="vi('${inv.id}')">
+    <div class="flex ac gap-12">
+      <div class="inv-avatar">${ini(inv.name)}</div>
+      <div class="inv-meta">
+        <h3>${inv.name}</h3>
+        <p>@${inv.username} · ${inv.dni||'Sin DNI'}</p>
+        ${c?`<div style="margin-top:6px;display:flex;align-items:center;gap:6px">
+          <div style="width:80px;height:4px;background:var(--surface3);border-radius:2px;flex-shrink:0">
+            <div style="height:100%;width:${pct}%;background:${pct>=90?'var(--red)':pct>=60?'var(--amber)':'var(--gold)'};border-radius:2px"></div>
+          </div>
+          <span style="font-size:10px;color:var(--text3)">${pct}% utilizado</span>
+        </div>`:''}
+      </div>
+    </div>
+    <div class="flex gap-8 fw" style="gap:10px;align-items:center">
+      <div class="metric" style="min-width:110px;padding:10px 14px"><div class="m-label">Aportación</div><div class="m-val gold" style="font-size:14px">${c?fmt(c.amount):'—'}</div></div>
+      <div class="metric" style="min-width:110px;padding:10px 14px;--m-color:${libreColor}">
+        <div class="m-label">Disponible</div>
+        <div class="m-val" style="font-size:14px;color:${libreColor}">${c?fmt(libre):'—'}</div>
+      </div>
+      <div class="metric" style="min-width:110px;padding:10px 14px;--m-color:var(--green)"><div class="m-label">Ben. neto</div><div class="m-val green" style="font-size:14px">${fmt(st.tn)}</div></div>
+      <div class="metric" style="min-width:70px;padding:10px 14px"><div class="m-label">Activas</div><div class="m-val" style="font-size:14px">${ops.filter(o=>o.status!=='sold').length}</div></div>
+      <div style="display:flex;flex-direction:column;gap:6px;align-self:center">
+        <span class="badge ${c&&c.status==='active'?'b-active':'b-sold'}">${c?c.status==='active'?'Activo':'Cerrado':'Sin contrato'}</span>
+        ${c?`<span style="font-size:10px;font-weight:600;color:${libreColor};text-align:center">${libreLabel}</span>`:''}
+      </div>
+    </div></div>`;}).join('')}`;
+}
+
+function vi(id){SID=id;sp('adm-inv');}
+
+function pgInvDetail(iid){
+  const inv=DB.users.find(u=>u.id===iid);if(!inv)return'<p>No encontrado</p>';
+  const c=gic(iid);const ops=c?gco(c.id):[];
+  const liqs=c?DB.liqs.filter(l=>l.contractId===c.id):[];const st=gstat(iid);
+  return`<div class="back" onclick="SID=null;sp('adm-inv')">← Volver a inversores</div>
+  <div class="detail-hero"><div class="dh-inner">
+    <div class="dh-avatar">${ini(inv.name)}</div>
+    <div class="dh-info"><h2>${inv.name}</h2><p>@${inv.username} · ${inv.dni||'—'} · ${inv.email||'—'}</p></div>
+    <div class="dh-actions"><button class="btn btn-ghost btn-sm" onclick="mei('${inv.id}')">Editar</button><button class="btn btn-primary btn-sm" onclick="mno('${iid}')">+ Operación</button></div>
+  </div></div>
+  <div class="metrics">
+    <div class="metric" style="--m-color:var(--gold)"><div class="m-label">Aportación</div><div class="m-val gold sm">${c?fmt(c.amount):'—'}</div></div>
+    <div class="metric"><div class="m-label">Ben. bruto acum.</div><div class="m-val sm">${fmt(st.tb)}</div></div>
+    <div class="metric" style="--m-color:var(--red)"><div class="m-label">Retención IRPF</div><div class="m-val red sm">${fmt(st.tr)}</div></div>
+    <div class="metric" style="--m-color:var(--green)"><div class="m-label">Ben. neto liquidado</div><div class="m-val green sm">${fmt(st.tn)}</div></div>
+  </div>
+  ${c?`<div class="card"><div class="card-header"><span class="card-title">Contrato</span><span class="badge ${c.status==='active'?'b-active':'b-sold'}">${c.status==='active'?'Activo':'Cerrado'}</span></div>
+  <div class="tw"><table><thead><tr><th>Inicio</th><th>Fin</th><th>Aportación</th><th>Participación</th><th>IBAN</th></tr></thead>
+  <tbody><tr><td>${fmtD(c.startDate)}</td><td>${fmtD(c.endDate)}</td><td style="color:var(--gold);font-weight:600">${fmt(c.amount)}</td><td>50 %</td><td style="font-size:11px">${inv.iban||'—'}</td></tr></tbody></table></div></div>`
+  :'<div class="alert a-warn">Sin contrato activo.</div>'}
+  <div class="card"><div class="card-header"><span class="card-title">Vehículos</span></div>
+  <div style="padding:12px 18px;border-bottom:1px solid var(--border)">
+    <input id="veh-search-${iid}" oninput="filterVehicles('${iid}')" placeholder="🔍  Buscar por marca, modelo o matrícula..." style="width:100%;padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:12px;color:var(--text);font-family:inherit;outline:none">
+  </div>
+  ${ops.length===0?'<div class="card-body"><div class="empty">Sin operaciones.</div></div>':''}
+  ${ops.length>0?`<div class="tw"><table id="veh-table-${iid}"><thead><tr><th>Marca</th><th>Modelo</th><th>Matrícula</th><th>F. compra</th><th>P. compra</th><th>Gastos</th><th>P. venta</th><th>Ben. op.</th><th>Estado</th><th></th></tr></thead>
+  <tbody>${ops.map(op=>{const ge=totalExp(op);const bn=cbn(op);
+    const expDetail=(op.expenses||[]).length>0?`<br><span class="ts tm">${(op.expenses||[]).map(e=>`${e.name||'Gasto'}: ${fmt(e.amount)}`).join(' · ')}</span>`:'';
+    return`<tr data-marca="${(op.marca||op.vehicle||'').toLowerCase()}" data-modelo="${(op.modelo||'').toLowerCase()}" data-matricula="${(op.matricula||'').toLowerCase()}">
+    <td><strong>${op.marca||'—'}</strong>${op.version?`<br><span class="ts tm">${op.version}</span>`:''}</td>
+    <td>${op.modelo||'—'}</td>
+    <td><span style="font-family:monospace;font-size:12px;background:var(--surface2);padding:2px 7px;border-radius:4px;color:var(--text)">${op.matricula||'—'}</span></td>
+    <td>${fmtD(op.buyDate)}</td><td>${fmt(op.buyPrice)}</td>
+    <td>${ge>0?fmt(ge):'—'}${expDetail}</td>
+    <td>${op.sellPrice?fmt(op.sellPrice):'—'}</td>
+    <td style="${op.status==='sold'?'color:var(--gold);font-weight:600':''}">${op.status==='sold'?fmt(bn):'—'}</td>
+    <td><span class="badge b-${op.status}">${op.status==='active'?'Activo':op.status==='reserved'?'Reservado':'Vendido'}</span></td>
+    <td style="white-space:nowrap">
+      ${op.status==='active'?`<button class="btn btn-ghost btn-sm" onclick="mro('${op.id}')">Reservar</button> `:''}
+      ${op.status==='reserved'?`<button class="btn btn-success btn-sm" onclick="mso('${op.id}')">Marcar vendido</button> `:''}
+      <button class="btn btn-ghost btn-sm" style="padding:4px 8px" title="Editar" onclick="meo('${op.id}')">✏️</button>
+      <button class="btn btn-sm" style="padding:4px 8px;background:var(--red-bg);border:1px solid rgba(240,96,96,.2);color:var(--red)" title="Eliminar" onclick="mdo('${op.id}')">🗑</button>
+    </td></tr>`;}).join('')}</tbody></table></div>`:''}
+  </div>
+  <div class="card"><div class="card-header"><span class="card-title">Liquidaciones</span>
+  ${c&&ops.filter(o=>o.status==='sold'&&!isLiq(o.id)).length>0?`<button class="btn btn-primary btn-sm" onclick="mgl('${iid}')">Generar liquidación</button>`:''}
+  </div>
+  ${liqs.length===0?'<div class="card-body"><div class="empty">Sin liquidaciones emitidas.</div></div>':''}
+  ${liqs.length>0?`<div class="tw"><table><thead><tr><th>Fecha</th><th>Período</th><th>Ben. bruto</th><th>Ret. 19%</th><th>Ben. neto</th><th>Dev. capital</th><th>Total</th></tr></thead>
+  <tbody>${liqs.map(l=>`<tr><td>${fmtD(l.date)}</td><td>${l.period||'—'}</td>
+  <td>${fmt(l.grossBenefit)}</td><td style="color:var(--red)">${fmt(l.retention)}</td>
+  <td style="color:var(--gold);font-weight:600">${fmt(l.netBenefit)}</td><td>${fmt(l.capitalReturn)}</td>
+  <td><strong>${fmt((l.netBenefit||0)+(l.capitalReturn||0))}</strong></td></tr>`).join('')}</tbody></table></div>`:''}
+  </div>`;
+}
+
+function pgAdmOps(){
+  const ops=DB.ops.slice().reverse();
+  return`<div class="ph"><div><div class="ph-title">Operaciones</div><div class="ph-sub">Compraventa de vehículos</div></div>
+  <button class="btn btn-primary" onclick="mno(null)">+ Nueva operación</button></div>
+  ${ops.length===0?'<div class="card"><div class="card-body"><div class="empty">Sin operaciones registradas.</div></div></div>':''}
+  ${ops.length>0?`<div class="card">
+  <div style="padding:12px 18px;border-bottom:1px solid var(--border)">
+    <input oninput="filterOpsAdmin(this.value)" placeholder="🔍  Buscar por marca, modelo o matrícula..." style="width:100%;padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:12px;color:var(--text);font-family:inherit;outline:none">
+  </div>
+  <div class="tw"><table id="ops-admin-table">
+  <thead><tr><th>Marca</th><th>Modelo</th><th>Matrícula</th><th>Inversor</th><th>F. compra</th><th>P. compra</th><th>Gastos</th><th>P. venta</th><th>Ben. op.</th><th>Estado</th><th></th></tr></thead>
+  <tbody>${ops.map(op=>{const c=DB.contracts.find(x=>x.id===op.contractId);const inv=c?DB.users.find(u=>u.id===c.investorId):null;const ge=totalExp(op);const bn=cbn(op);
+    return`<tr data-marca="${(op.marca||op.vehicle||'').toLowerCase()}" data-modelo="${(op.modelo||'').toLowerCase()}" data-matricula="${(op.matricula||'').toLowerCase()}">
+    <td><strong>${op.marca||vLabel(op)}</strong>${op.version?`<br><span class="ts tm">${op.version}</span>`:''}</td>
+    <td>${op.modelo||'—'}</td>
+    <td><span style="font-family:monospace;font-size:12px;background:var(--surface2);padding:2px 7px;border-radius:4px;color:var(--text)">${op.matricula||'—'}</span></td>
+    <td>${inv?inv.name:'—'}</td>
+    <td>${fmtD(op.buyDate)}</td><td>${fmt(op.buyPrice)}</td><td>${ge>0?fmt(ge):'—'}</td><td>${op.sellPrice?fmt(op.sellPrice):'—'}</td>
+    <td style="${op.status==='sold'?'color:var(--gold);font-weight:600':''}">${op.status==='sold'?fmt(bn):'—'}</td>
+    <td><span class="badge b-${op.status}">${op.status==='active'?'Activo':op.status==='reserved'?'Reservado':'Vendido'}</span></td>
+    <td style="white-space:nowrap">
+      ${op.status==='active'?`<button class="btn btn-ghost btn-sm" onclick="mro('${op.id}')">Reservar</button> `:''}
+      ${op.status==='reserved'?`<button class="btn btn-success btn-sm" onclick="mso('${op.id}')">Marcar vendido</button> `:''}
+      <button class="btn btn-ghost btn-sm" style="padding:4px 8px" title="Editar" onclick="meo('${op.id}')">✏️</button>
+      <button class="btn btn-sm" style="padding:4px 8px;background:var(--red-bg);border:1px solid rgba(240,96,96,.2);color:var(--red)" title="Eliminar" onclick="mdo('${op.id}')">🗑</button>
+    </td></tr>`;}).join('')}</tbody></table></div></div>`:''}`;
+}
+
+function pgAdmLiq(){
+  const liqs=DB.liqs.slice().reverse();
+  const tn=liqs.reduce((s,l)=>s+(l.netBenefit||0),0);const tr=liqs.reduce((s,l)=>s+(l.retention||0),0);
+  return`<div class="ph"><div><div class="ph-title">Liquidaciones</div><div class="ph-sub">Historial de liquidaciones emitidas</div></div></div>
+  <div class="metrics">
+    <div class="metric"><div class="m-label">Total emitidas</div><div class="m-val">${liqs.length}</div></div>
+    <div class="metric" style="--m-color:var(--gold)"><div class="m-label">Neto pagado</div><div class="m-val gold sm">${fmt(tn)}</div></div>
+    <div class="metric" style="--m-color:var(--red)"><div class="m-label">Total ret. IRPF</div><div class="m-val red sm">${fmt(tr)}</div></div>
+  </div>
+  ${liqs.length===0?'<div class="card"><div class="card-body"><div class="empty">Sin liquidaciones emitidas.</div></div></div>':''}
+  ${liqs.length>0?`<div class="card"><div class="tw"><table>
+  <thead><tr><th>Fecha</th><th>Ref.</th><th>Inversor</th><th>Período</th><th>Ben. bruto</th><th>Ret. 19%</th><th>Ben. neto</th><th>Dev. capital</th><th>Total</th></tr></thead>
+  <tbody>${liqs.map(l=>{const c=DB.contracts.find(x=>x.id===l.contractId);const inv=c?DB.users.find(u=>u.id===c.investorId):null;
+    return`<tr><td>${fmtD(l.date)}</td><td><span class="tag">LIQ-${l.id.slice(-5).toUpperCase()}</span></td>
+    <td>${inv?inv.name:'—'}</td><td>${l.period||'—'}</td>
+    <td>${fmt(l.grossBenefit)}</td><td style="color:var(--red)">${fmt(l.retention)}</td>
+    <td style="color:var(--gold);font-weight:600">${fmt(l.netBenefit)}</td><td>${fmt(l.capitalReturn)}</td>
+    <td><strong>${fmt((l.netBenefit||0)+(l.capitalReturn||0))}</strong></td></tr>`;}).join('')}</tbody></table></div></div>`:''}`;
+}
+
+// ── INVESTOR PAGES ────────────────────────────────────────
+function pgInvDash(){
+  const inv=CU;const c=gic(inv.id);const ops=c?gco(c.id):[];
+  const liqs=c?DB.liqs.filter(l=>l.contractId===c.id):[];const st=gstat(inv.id);
+  const ro=ops.filter(o=>o.status==='reserved');
+  const utilizado=ops.filter(o=>o.status!=='sold').reduce((s,o)=>s+(o.buyPrice||0),0);
+  const libre=c?Math.max(0,(c.amount||0)-utilizado):0;
+  const pctUsado=c&&c.amount>0?Math.min(100,Math.round(utilizado/c.amount*100)):0;
+  return`<div class="ph"><div><div class="ph-title">Hola, ${inv.name.split(' ')[0]} 👋</div><div class="ph-sub">Resumen de tu inversión</div></div></div>
+  ${ro.length>0?`<div class="alert a-warn"><strong>⚡ ${ro.length} vehículo(s) reservado(s)</strong> — Cuando se complete la venta recibirás la liquidación.
+  ${ro.map(o=>`<br>· ${vLabel(o)} · Precio previsto: ${fmt(o.sellPrice||0)}`).join('')}</div>`:''}
+  <div class="metrics">
+    <div class="metric" style="--m-color:var(--gold)"><div class="m-label">Tu aportación total</div><div class="m-val gold sm">${c?fmt(c.amount):'—'}</div></div>
+    <div class="metric" style="--m-color:var(--amber)"><div class="m-label">Importe utilizado</div><div class="m-val amber sm">${fmt(utilizado)}</div></div>
+    <div class="metric" style="--m-color:var(--green)"><div class="m-label">Disponible</div><div class="m-val green sm">${fmt(libre)}</div></div>
+    <div class="metric"><div class="m-label">Vehículos activos</div><div class="m-val">${ops.filter(o=>o.status==='active').length}</div></div>
+    <div class="metric" style="--m-color:var(--amber)"><div class="m-label">Reservados</div><div class="m-val amber">${ro.length}</div></div>
+    <div class="metric" style="--m-color:var(--green)"><div class="m-label">Ben. neto cobrado</div><div class="m-val green sm">${fmt(st.tn)}</div></div>
+  </div>
+  ${c&&c.amount>0?`<div class="card"><div class="card-body" style="padding:14px 18px">
+    <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text2);margin-bottom:8px">
+      <span>Capital utilizado en vehículos activos</span>
+      <span style="font-weight:600;color:var(--text)">${pctUsado}% · ${fmt(utilizado)} de ${fmt(c.amount)}</span>
+    </div>
+    <div style="height:6px;background:var(--surface3);border-radius:3px;overflow:hidden">
+      <div style="height:100%;width:${pctUsado}%;background:${pctUsado>=90?'var(--red)':pctUsado>=60?'var(--amber)':'var(--gold)'};border-radius:3px;transition:width .3s"></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-top:6px">
+      <span>Disponible: <span style="color:var(--green);font-weight:600">${fmt(libre)}</span></span>
+      <span>Vendido: <span style="color:var(--text2)">${ops.filter(o=>o.status==='sold').length} vehículo(s)</span></span>
+    </div>
+  </div></div>`:''}
+  ${c?`<div class="card"><div class="card-header"><span class="card-title">Tu contrato</span><span class="badge ${c.status==='active'?'b-active':'b-sold'}">${c.status==='active'?'Activo':'Cerrado'}</span></div>
+  <div class="tw"><table><thead><tr><th>Inicio</th><th>Vencimiento</th><th>Aportación</th><th>Participación</th></tr></thead>
+  <tbody><tr><td>${fmtD(c.startDate)}</td><td>${c.endDate?fmtD(c.endDate):'Sin vencimiento'}</td>
+  <td style="color:var(--gold);font-weight:600">${fmt(c.amount)}</td><td>50 % del beneficio neto</td></tr></tbody></table></div></div>`
+  :'<div class="alert a-info">Todavía no tienes contrato activo. Contacta con Auto Gallery.</div>'}
+  ${liqs.length>0?`<div class="card"><div class="card-header"><span class="card-title">Últimas liquidaciones</span></div>
+  <div class="tw"><table><thead><tr><th>Fecha</th><th>Período</th><th>Ben. neto</th><th>Dev. capital</th><th>Total recibido</th></tr></thead>
+  <tbody>${liqs.slice(-3).reverse().map(l=>`<tr><td>${fmtD(l.date)}</td><td>${l.period||'—'}</td>
+  <td style="color:var(--gold);font-weight:600">${fmt(l.netBenefit)}</td><td>${fmt(l.capitalReturn)}</td>
+  <td><strong>${fmt((l.netBenefit||0)+(l.capitalReturn||0))}</strong></td></tr>`).join('')}</tbody></table></div></div>`:''}`;
+}
+
+function pgInvOps(){
+  const c=gic(CU.id);const ops=c?gco(c.id):[];
+  return`<div class="ph"><div><div class="ph-title">Mis vehículos</div><div class="ph-sub">Operaciones de compraventa de tu inversión</div></div></div>
+  ${ops.length===0?'<div class="card"><div class="card-body"><div class="empty">Sin vehículos asignados todavía.</div></div></div>':''}
+  ${ops.length>0?`<div class="card">
+  <div style="padding:12px 18px;border-bottom:1px solid var(--border)">
+    <input oninput="filterInvOps(this.value)" placeholder="🔍  Buscar por marca, modelo o matrícula..." style="width:100%;padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:12px;color:var(--text);font-family:inherit;outline:none">
+  </div>
+  <div class="tw"><table id="inv-ops-table">
+  <thead><tr><th>Marca</th><th>Modelo</th><th>Matrícula</th><th>F. compra</th><th>P. compra</th><th>Gastos</th><th>P. venta</th><th>Tu parte (50%)</th><th>Estado</th></tr></thead>
+  <tbody>${ops.map(op=>{const ge=totalExp(op);
+    const bn=cbn(op);const pb=bn*0.5;const ret=pb*0.19;
+    return`<tr data-marca="${(op.marca||op.vehicle||'').toLowerCase()}" data-modelo="${(op.modelo||'').toLowerCase()}" data-matricula="${(op.matricula||'').toLowerCase()}">
+    <td><strong>${op.marca||vLabel(op)}</strong>${op.version?`<br><span class="ts tm">${op.version}</span>`:''}</td>
+    <td>${op.modelo||'—'}</td>
+    <td><span style="font-family:monospace;font-size:12px;background:var(--surface2);padding:2px 7px;border-radius:4px;color:var(--text)">${op.matricula||'—'}</span></td>
+    <td>${fmtD(op.buyDate)}</td>
+    <td>${fmt(op.buyPrice)}</td><td>${ge>0?fmt(ge):'—'}</td><td>${op.sellPrice?fmt(op.sellPrice):'—'}</td>
+    <td>${op.status==='sold'?`<span style="color:var(--gold);font-weight:600">${fmt(pb-ret)}</span><br><span class="ts" style="color:var(--red)">ret. ${fmt(ret)}</span>`:'—'}</td>
+    <td><span class="badge b-${op.status}">${op.status==='active'?'Activo':op.status==='reserved'?'Reservado':'Vendido'}</span></td></tr>`;
+  }).join('')}</tbody></table></div></div>`:''}`;
+}
+
+function pgInvLiq(){
+  const c=gic(CU.id);const liqs=c?DB.liqs.filter(l=>l.contractId===c.id):[];
+  return`<div class="ph"><div><div class="ph-title">Mis liquidaciones</div><div class="ph-sub">Historial y detalle de liquidaciones recibidas</div></div></div>
+  ${liqs.length===0?'<div class="card"><div class="card-body"><div class="empty">Sin liquidaciones emitidas todavía.</div></div></div>':''}
+  ${liqs.map(l=>{const tot=(l.netBenefit||0)+(l.capitalReturn||0);
+    return`<div class="card"><div class="card-header">
+    <div><div class="card-title">Liquidación · ${fmtD(l.date)}</div><div class="ts tm" style="margin-top:3px">Período: ${l.period||'—'} · <span class="tag">LIQ-${l.id.slice(-5).toUpperCase()}</span></div></div>
+    <div style="font-size:20px;font-weight:700;color:var(--gold)">${fmt(tot)}</div>
+    </div>
+    <div class="card-body"><div class="liq-box">
+      <div class="liq-head">Desglose de la liquidación</div>
+      <div class="lr"><span>Beneficio neto de las operaciones</span><span style="font-weight:600">${fmt(l.benefitBase||0)}</span></div>
+      <div class="lr"><span>Tu participación del 50% (bruto)</span><span style="font-weight:600">${fmt(l.grossBenefit)}</span></div>
+      <div class="lr lred"><span>Retención IRPF 19% → Hacienda</span><span>– ${fmt(l.retention)}</span></div>
+      <div class="lr"><span>Beneficio neto transferido</span><span style="font-weight:600;color:var(--green)">${fmt(l.netBenefit)}</span></div>
+      <div class="lr"><span>Devolución de aportación</span><span style="font-weight:600">${fmt(l.capitalReturn)}</span></div>
+      <div class="lr tot"><span>TOTAL recibido en tu cuenta</span><span>${fmt(tot)}</span></div>
+    </div>
+    ${l.notes?`<div class="alert a-info" style="margin-top:12px;margin-bottom:0">${l.notes}</div>`:''}
+    </div></div>`;}).join('')}`;
+}
+
+function pgInvProf(){
+  const inv=CU;
+  return`<div class="ph"><div><div class="ph-title">Mis datos</div><div class="ph-sub">Datos personales y bancarios · puedes editar tu información de contacto</div></div></div>
+  <div class="card">
+    <div class="card-header"><span class="card-title">Datos de contacto</span><span class="ts tm">Los campos marcados con * no son editables</span></div>
+    <div class="card-body">
+      <div class="fr">
+        <div class="ff"><label>Nombre completo *</label><input value="${inv.name||''}" disabled style="opacity:.45;cursor:not-allowed"></div>
+        <div class="ff"><label>Usuario *</label><input value="${inv.username||''}" disabled style="opacity:.45;cursor:not-allowed"></div>
+      </div>
+      <div class="fr">
+        <div class="ff"><label>DNI / CIF *</label><input value="${inv.dni||'—'}" disabled style="opacity:.45;cursor:not-allowed"></div>
+        <div class="ff"><label>Teléfono</label><input id="p-ph" value="${inv.phone||''}" placeholder="Ej: 600 000 000"></div>
+      </div>
+      <div class="ff"><label>Email</label><input id="p-em" type="email" value="${inv.email||''}" placeholder="tu@email.com"></div>
+      <div class="ff"><label>Domicilio</label><input id="p-ad" value="${inv.address||''}" placeholder="Calle, número, ciudad, código postal"></div>
+      <div class="ff"><label>IBAN (cuenta de cobro)</label><input id="p-ib" value="${inv.iban||''}" placeholder="ES12 1234 5678 9012 3456 7890"></div>
+      <hr style="border:none;border-top:1px solid var(--border);margin:16px 0">
+      <div class="ff"><label>Cambiar contraseña <span style="font-weight:400;text-transform:none;letter-spacing:0">(dejar vacío para no cambiar)</span></label>
+        <input id="p-pw" type="password" placeholder="Nueva contraseña...">
+      </div>
+      <div id="prof-msg" style="min-height:20px;font-size:12px;margin-bottom:4px"></div>
+      <button class="btn btn-primary" style="width:100%" onclick="saveInvProf()">Guardar cambios</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header"><span class="card-title">Información de solo lectura</span></div>
+    <div class="tw"><table>
+      ${[['DNI / CIF',inv.dni||'—'],['Nombre',inv.name||'—'],['Nº de usuario',inv.username]]
+        .map(([k,v])=>`<tr><td style="color:var(--text3);width:180px">${k}</td><td><strong>${v}</strong></td></tr>`).join('')}
+    </table></div>
+    <div class="card-body"><div class="alert a-info" style="margin-bottom:0">Nombre, usuario y DNI solo pueden modificarse contactando con Auto Gallery Premium AL.</div></div>
+  </div>`;
+}
+
+function saveInvProf(){
+  const inv=CU;
+  inv.phone=document.getElementById('p-ph').value.trim();
+  inv.email=document.getElementById('p-em').value.trim();
+  inv.address=document.getElementById('p-ad').value.trim();
+  inv.iban=document.getElementById('p-ib').value.trim();
+  const np=document.getElementById('p-pw').value;
+  if(np){
+    if(np.length<6){
+      const msg=document.getElementById('prof-msg');
+      msg.textContent='La contraseña debe tener al menos 6 caracteres.';
+      msg.style.color='var(--red)';return;
+    }
+    inv.password=np;
+  }
+  // Update in DB too
+  const idx=DB.users.findIndex(u=>u.id===inv.id);
+  if(idx>=0)DB.users[idx]={...DB.users[idx],...inv};
+  sdb();
+  const msg=document.getElementById('prof-msg');
+  msg.textContent='✓ Cambios guardados correctamente.';
+  msg.style.color='var(--green)';
+  document.getElementById('p-pw').value='';
+  setTimeout(()=>{if(msg)msg.textContent='';},3000);
+}
+
+// ── MODALS ────────────────────────────────────────────────
+function om(h){document.getElementById('mb').innerHTML=h;document.getElementById('mo').classList.remove('hidden');}
+function cm(){document.getElementById('mo').classList.add('hidden');}
+function cmo(e){if(e.target===document.getElementById('mo'))cm();}
+
+function mni(){
+  om(`<div class="mt2">Nuevo inversor</div>
+  <div class="fr"><div class="ff"><label>Nombre completo *</label><input id="n-nm" placeholder="Juan García López"></div>
+  <div class="ff"><label>Usuario (login) *</label><input id="n-us" placeholder="juan.garcia"></div></div>
+  <div class="fr"><div class="ff"><label>Contraseña *</label><input id="n-pw" type="password" placeholder="••••••••"></div>
+  <div class="ff"><label>DNI / CIF</label><input id="n-dn" placeholder="12345678A"></div></div>
+  <div class="fr"><div class="ff"><label>Email</label><input id="n-em" type="email"></div>
+  <div class="ff"><label>Teléfono</label><input id="n-ph"></div></div>
+  <div class="ff"><label>IBAN</label><input id="n-ib" placeholder="ES12 1234 5678..."></div>
+  <div class="ff"><label>Domicilio</label><input id="n-ad"></div>
+  <hr class="gl">
+  <div class="fr"><div class="ff"><label>Aportación (€) *</label><input id="n-am" type="number" placeholder="10000"></div>
+  <div class="ff"><label>Fecha inicio *</label><input id="n-sd" type="date"></div></div>
+  <div class="fr"><div class="ff"><label>Fecha fin contrato</label><input id="n-ed" type="date"></div>
+  <div class="ff"><label>Participación</label><input value="50 %" disabled style="opacity:.5"></div></div>
+  <div class="mf"><button class="btn btn-ghost" onclick="cm()">Cancelar</button><button class="btn btn-primary" onclick="sni()">Crear inversor</button></div>`);
+}
+async function sni(){
+  const nm=document.getElementById('n-nm').value.trim(),us=document.getElementById('n-us').value.trim(),pw=document.getElementById('n-pw').value;
+  const am=parseFloat(document.getElementById('n-am').value),sd=document.getElementById('n-sd').value;
+  if(!nm||!us||!pw||!am||!sd){alert('Completa los campos obligatorios (*)');return;}
+  if(DB.users.find(u=>u.username===us)){alert('Ese usuario ya existe');return;}
+  const inv={id:gid(),username:us,password:pw,name:nm,role:'investor',
+    dni:document.getElementById('n-dn').value,email:document.getElementById('n-em').value,
+    phone:document.getElementById('n-ph').value,iban:document.getElementById('n-ib').value,
+    address:document.getElementById('n-ad').value};
+  const c={id:gid(),investorId:inv.id,amount:am,startDate:sd,endDate:document.getElementById('n-ed').value||null,percentage:.5,status:'active'};
+  DB.users.push(inv);DB.contracts.push(c);sdb();cm();sp(AP);
+}
+
+function mei(iid){
+  const inv=DB.users.find(u=>u.id===iid),c=gic(iid);
+  om(`<div class="mt2">Editar — ${inv.name}</div>
+  <div class="fr"><div class="ff"><label>Nombre</label><input id="e-nm" value="${inv.name||''}"></div>
+  <div class="ff"><label>DNI / CIF</label><input id="e-dn" value="${inv.dni||''}"></div></div>
+  <div class="fr"><div class="ff"><label>Email</label><input id="e-em" value="${inv.email||''}"></div>
+  <div class="ff"><label>Teléfono</label><input id="e-ph" value="${inv.phone||''}"></div></div>
+  <div class="ff"><label>IBAN</label><input id="e-ib" value="${inv.iban||''}"></div>
+  <div class="ff"><label>Domicilio</label><input id="e-ad" value="${inv.address||''}"></div>
+  <div class="ff"><label>Nueva contraseña (vacío = sin cambios)</label><input id="e-pw" type="password" placeholder="••••••••"></div>
+  ${c?`<hr class="gl"><div class="fr"><div class="ff"><label>Aportación (€)</label><input id="e-am" type="number" value="${c.amount}"></div>
+  <div class="ff"><label>Estado</label><select id="e-st"><option value="active" ${c.status==='active'?'selected':''}>Activo</option><option value="closed" ${c.status==='closed'?'selected':''}>Cerrado</option></select></div></div>`:''}
+  <div class="mf"><button class="btn btn-ghost" onclick="cm()">Cancelar</button><button class="btn btn-primary" onclick="sei('${iid}')">Guardar cambios</button></div>`);
+}
+function sei(iid){
+  const inv=DB.users.find(u=>u.id===iid),c=gic(iid);
+  inv.name=document.getElementById('e-nm').value||inv.name;
+  inv.dni=document.getElementById('e-dn').value;inv.email=document.getElementById('e-em').value;
+  inv.phone=document.getElementById('e-ph').value;inv.iban=document.getElementById('e-ib').value;
+  inv.address=document.getElementById('e-ad').value;
+  const np=document.getElementById('e-pw').value;if(np)inv.password=np;
+  if(c){c.amount=parseFloat(document.getElementById('e-am').value)||c.amount;c.status=document.getElementById('e-st').value;}
+  sdb();cm();sp(AP);
+}
+
+function mno(preIid){
+  const invs=DB.users.filter(u=>u.role==='investor');
+  om(`<div class="mt2">Registrar compra de vehículo</div>
+  <div class="ff"><label>Inversor *</label><select id="o-iv"><option value="">Selecciona inversor...</option>
+  ${invs.map(i=>`<option value="${i.id}" ${i.id===preIid?'selected':''}>${i.name}</option>`).join('')}</select></div>
+  <div class="fr">
+    <div class="ff"><label>Marca *</label><input id="o-mk" placeholder="Ej: BMW, Audi, Ford..."></div>
+    <div class="ff"><label>Modelo *</label><input id="o-ml" placeholder="Ej: Serie 3, A4, Focus..."></div>
+  </div>
+  <div class="fr">
+    <div class="ff"><label>Matrícula</label><input id="o-mt" placeholder="Ej: 1234 ABC" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()"></div>
+    <div class="ff"><label>Año / versión</label><input id="o-yr" placeholder="Ej: 2021, 2.0 TDI..."></div>
+  </div>
+  <div class="fr">
+    <div class="ff"><label>Fecha de compra *</label><input id="o-bd" type="date"></div>
+    <div class="ff"><label>Precio de compra (€) *</label><input id="o-bp" type="number" placeholder="12000" min="0"></div>
+  </div>
+  <div class="ff"><label>Notas (opcional)</label><input id="o-nt" placeholder="Ej: Comprado en subasta, buen estado..."></div>
+  <div class="alert a-info" style="margin-top:4px;margin-bottom:0">Los gastos y el precio de venta se añaden cuando se marque como vendido.</div>
+  <div class="mf"><button class="btn btn-ghost" onclick="cm()">Cancelar</button><button class="btn btn-primary" onclick="sno()">Registrar compra</button></div>`);
+}
+function sno(){
+  const iid=document.getElementById('o-iv').value;
+  const marca=document.getElementById('o-mk').value.trim();
+  const modelo=document.getElementById('o-ml').value.trim();
+  const matricula=document.getElementById('o-mt').value.trim();
+  const bd=document.getElementById('o-bd').value;
+  const bp=parseFloat(document.getElementById('o-bp').value);
+  if(!iid||!marca||!modelo||!bd||!bp){alert('Completa los campos obligatorios: Inversor, Marca, Modelo, Fecha y Precio');return;}
+  const c=gic(iid);if(!c){alert('Sin contrato activo para este inversor');return;}
+  DB.ops.push({id:gid(),contractId:c.id,
+    marca,modelo,matricula,
+    version:document.getElementById('o-yr').value.trim(),
+    vehicle:`${marca} ${modelo}${matricula?' · '+matricula:''}`,
+    buyDate:bd,buyPrice:bp,
+    notes:document.getElementById('o-nt').value,expenses:[],status:'active'});
+  sdb();cm();sp(AP);
+}
+
+function mro(oid){
+  const op=DB.ops.find(o=>o.id===oid);
+  om(`<div class="mt2">Marcar como reservado — <span style="color:var(--gold)">${vLabel(op)}</span></div>
+  <div class="alert a-info" style="margin-bottom:16px">El inversor verá en su panel que este vehículo tiene una reserva activa y podrá decidir si continuar o rescindir el contrato una vez vendido.</div>
+  <div class="fr">
+    <div class="ff"><label>Precio de reserva / venta acordado (€) *</label><input id="r-pr" type="number" placeholder="15000" value="${op.sellPrice||''}" min="0"></div>
+    <div class="ff"><label>Fecha prevista de cierre</label><input id="r-dt" type="date"></div>
+  </div>
+  <div class="ff"><label>Notas para el inversor (opcional)</label><input id="r-nt" placeholder="Ej: Reserva firme, firma prevista esta semana..."></div>
+  <div class="mf"><button class="btn btn-ghost" onclick="cm()">Cancelar</button><button class="btn btn-primary" onclick="sro('${oid}')">Confirmar reserva</button></div>`);
+}
+function sro(oid){
+  const pr=parseFloat(document.getElementById('r-pr').value);
+  if(!pr){alert('Introduce el precio de reserva');return;}
+  const op=DB.ops.find(o=>o.id===oid);
+  op.status='reserved';op.sellPrice=pr;
+  op.reserveDate=document.getElementById('r-dt').value||null;
+  op.reserveNotes=document.getElementById('r-nt').value||'';
+  sdb();cm();sp(AP);
+}
+
+let _tmpExp=[];
+function addExpRow(){
+  _tmpExp.push({id:gid(),name:'',amount:0});
+  renderExpRows();updateSellPreview();
+}
+function removeExpRow(eid){
+  _tmpExp=_tmpExp.filter(e=>e.id!==eid);
+  renderExpRows();updateSellPreview();
+}
+function renderExpRows(){
+  const c=document.getElementById('exp-rows');if(!c)return;
+  c.innerHTML=_tmpExp.map(e=>`
+  <div class="exp-row" id="er-${e.id}" style="display:grid;grid-template-columns:1fr auto auto;gap:8px;margin-bottom:8px;align-items:center">
+    <input placeholder="Descripción del gasto" value="${e.name||''}" oninput="_tmpExp.find(x=>x.id==='${e.id}').name=this.value"
+      style="padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:12px;color:var(--text);font-family:inherit;outline:none">
+    <input type="number" placeholder="0 €" value="${e.amount||''}" min="0" oninput="_tmpExp.find(x=>x.id==='${e.id}').amount=parseFloat(this.value)||0;updateSellPreview()"
+      style="width:110px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:12px;color:var(--text);font-family:inherit;outline:none">
+    <button onclick="removeExpRow('${e.id}')" style="background:var(--red-bg);border:1px solid rgba(240,96,96,.2);color:var(--red);border-radius:6px;padding:7px 10px;cursor:pointer;font-size:13px;font-weight:700">✕</button>
+  </div>`).join('');
+}
+function updateSellPreview(){
+  const oid=document.getElementById('sprev-oid').value;
+  const op=DB.ops.find(o=>o.id===oid);if(!op)return;
+  const sp2=parseFloat(document.getElementById('s-pr').value)||0;
+  const ge=_tmpExp.reduce((s,e)=>s+(e.amount||0),0);
+  const totalCost=op.buyPrice+ge;
+  const bn=sp2-totalCost;const pb=bn*0.5;const ret=pb*0.19;const neto=pb-ret;
+  const prev=document.getElementById('sprev');if(!prev)return;
+  if(sp2<=0){prev.innerHTML='';return;}
+  prev.innerHTML=`<div class="liq-box" style="margin-top:14px">
+    <div class="liq-head">Previsualización del resultado</div>
+    <div class="lr"><span>Precio de venta</span><span style="font-weight:600;color:var(--green)">${fmt(sp2)}</span></div>
+    <div class="lr"><span>Precio de compra</span><span>– ${fmt(op.buyPrice)}</span></div>
+    <div class="lr"><span>Total gastos deducibles</span><span>– ${fmt(ge)}</span></div>
+    <div class="lr" style="border-top:1px solid var(--border2)"><span style="font-weight:600">Beneficio neto de la operación</span><span style="font-weight:700;color:${bn>=0?'var(--gold)':'var(--red)'}">  ${fmt(bn)}</span></div>
+    <div class="lr"><span>Parte del inversor (50%)</span><span>${fmt(pb)}</span></div>
+    <div class="lr lred"><span>Retención IRPF 19%</span><span>– ${fmt(ret)}</span></div>
+    <div class="lr tot"><span>Neto al inversor</span><span>${fmt(neto)}</span></div>
+  </div>`;
+}
+function mso(oid){
+  const op=DB.ops.find(o=>o.id===oid);
+  _tmpExp=(op.expenses||[]).map(e=>({...e,id:e.id||gid()}));
+  om(`<div class="mt2">Confirmar venta — <span style="color:var(--gold)">${vLabel(op)}</span></div>
+  <input type="hidden" id="sprev-oid" value="${oid}">
+  <div class="fr">
+    <div class="ff"><label>Precio de venta final (€) *</label><input id="s-pr" type="number" value="${op.sellPrice||''}" placeholder="15000" min="0" oninput="updateSellPreview()"></div>
+    <div class="ff"><label>Fecha de venta *</label><input id="s-dt" type="date" value="${new Date().toISOString().split('T')[0]}"></div>
+  </div>
+  <div style="margin-bottom:10px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div style="font-size:10px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.5px">Gastos deducibles</div>
+      <button onclick="addExpRow()" style="background:var(--gold-bg);border:1px solid var(--gold-dim);color:var(--gold);border-radius:6px;padding:5px 12px;cursor:pointer;font-size:11px;font-weight:600;font-family:inherit">+ Añadir gasto</button>
+    </div>
+    <div id="exp-rows"></div>
+    <div id="exp-empty" style="font-size:12px;color:var(--text3);text-align:center;padding:12px;border:1px dashed var(--border2);border-radius:var(--radius-sm)">Sin gastos añadidos aún. Pulsa "+ Añadir gasto" para incluirlos.</div>
+  </div>
+  <div id="sprev"></div>
+  <div class="mf"><button class="btn btn-ghost" onclick="cm()">Cancelar</button><button class="btn btn-success" onclick="sso('${oid}')">Confirmar venta</button></div>`);
+  renderExpRows();
+  if(op.sellPrice)updateSellPreview();
+  // Toggle empty state
+  const checkEmpty=()=>{const e=document.getElementById('exp-empty');if(e)e.style.display=_tmpExp.length?'none':'block';};
+  const origAdd=addExpRow,origRm=removeExpRow;
+  window.addExpRow=()=>{origAdd();checkEmpty();};
+  window.removeExpRow=(eid)=>{origRm(eid);checkEmpty();};
+  checkEmpty();
+}
+function sso(oid){
+  const pr=parseFloat(document.getElementById('s-pr').value),dt=document.getElementById('s-dt').value;
+  if(!pr||!dt){alert('El precio de venta y la fecha son obligatorios');return;}
+  const op=DB.ops.find(o=>o.id===oid);
+  op.status='sold';op.sellPrice=pr;op.sellDate=dt;
+  op.expenses=_tmpExp.filter(e=>e.name||e.amount>0);
+  sdb();cm();sp(AP);
+}
+
+function mgl(iid){
+  const c=gic(iid),ulops=DB.ops.filter(o=>o.contractId===c.id&&o.status==='sold'&&!isLiq(o.id));
+  const inv=DB.users.find(u=>u.id===iid);
+  const tbn=ulops.reduce((s,op)=>s+cbn(op),0);const pb=tbn*0.5;const ret=pb*0.19;const neto=pb-ret;
+  om(`<div class="mt2">Generar liquidación — ${inv.name}</div>
+  <div class="fr"><div class="ff"><label>Período</label><input id="l-pe" placeholder="Ene–Jun 2025"></div>
+  <div class="ff"><label>Fecha</label><input id="l-dt" type="date" value="${new Date().toISOString().split('T')[0]}"></div></div>
+  <div class="ff"><label>Devolución de capital (€)</label><input id="l-cp" type="number" value="0">
+  <div class="hint">0 si el capital se reinvierte en nuevas operaciones</div></div>
+  <div class="ff"><label>Nota para el inversor</label><input id="l-nt" placeholder="Ej: La aportación se reinvierte en el siguiente vehículo."></div>
+  <div class="alert a-info" style="margin:12px 0"><strong>Operaciones a liquidar:</strong> ${ulops.map(o=>o.vehicle).join(', ')||'—'}</div>
+  <div class="liq-box">
+    <div class="liq-head">Resumen de la liquidación</div>
+    <div class="lr"><span>Beneficio neto total</span><span style="font-weight:600">${fmt(tbn)}</span></div>
+    <div class="lr"><span>Parte del inversor (50%)</span><span>${fmt(pb)}</span></div>
+    <div class="lr lred"><span>Retención IRPF 19% → Hacienda</span><span>– ${fmt(ret)}</span></div>
+    <div class="lr tot"><span>Neto a transferir al inversor</span><span>${fmt(neto)}</span></div>
+  </div>
+  <div class="mf"><button class="btn btn-ghost" onclick="cm()">Cancelar</button><button class="btn btn-primary" onclick="sgl('${iid}','${ulops.map(o=>o.id).join(',')}',${tbn})">Emitir liquidación</button></div>`);
+}
+function sgl(iid,oids,tbn){
+  const c=gic(iid);const pb=tbn*0.5;const ret=pb*0.19;const neto=pb-ret;
+  const cap=parseFloat(document.getElementById('l-cp').value)||0;
+  DB.liqs.push({id:gid(),contractId:c.id,date:document.getElementById('l-dt').value,
+    period:document.getElementById('l-pe').value,operationIds:oids?oids.split(',').filter(Boolean):[],
+    benefitBase:tbn,grossBenefit:pb,retention:ret,netBenefit:neto,
+    capitalReturn:cap,notes:document.getElementById('l-nt').value});
+  sdb();cm();sp(AP);
+}
+
+// ── EDIT & DELETE VEHICLE ─────────────────────────────────
+function meo(oid){
+  const op=DB.ops.find(o=>o.id===oid);
+  const invs=DB.users.filter(u=>u.role==='investor');
+  // Find current investor
+  const curContract=DB.contracts.find(c=>c.id===op.contractId);
+  const curInvId=curContract?curContract.investorId:'';
+  om(`<div class="mt2">Editar vehículo — <span style="color:var(--gold)">${vLabel(op)}</span></div>
+  <div class="ff"><label>Inversor *</label><select id="eo-iv">
+    ${invs.map(i=>`<option value="${i.id}" ${i.id===curInvId?'selected':''}>${i.name}</option>`).join('')}
+  </select></div>
+  <div class="fr">
+    <div class="ff"><label>Marca *</label><input id="eo-mk" value="${op.marca||''}"></div>
+    <div class="ff"><label>Modelo *</label><input id="eo-ml" value="${op.modelo||''}"></div>
+  </div>
+  <div class="fr">
+    <div class="ff"><label>Matrícula</label><input id="eo-mt" value="${op.matricula||''}" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()"></div>
+    <div class="ff"><label>Año / versión</label><input id="eo-yr" value="${op.version||''}"></div>
+  </div>
+  <div class="fr">
+    <div class="ff"><label>Fecha de compra *</label><input id="eo-bd" type="date" value="${op.buyDate||''}"></div>
+    <div class="ff"><label>Precio de compra (€) *</label><input id="eo-bp" type="number" value="${op.buyPrice||''}" min="0"></div>
+  </div>
+  <div class="ff"><label>Estado</label>
+    <select id="eo-st">
+      <option value="active" ${op.status==='active'?'selected':''}>Activo</option>
+      <option value="reserved" ${op.status==='reserved'?'selected':''}>Reservado</option>
+      <option value="sold" ${op.status==='sold'?'selected':''}>Vendido</option>
+    </select>
+  </div>
+  ${op.status==='reserved'||op.status==='sold'?`<div class="fr">
+    <div class="ff"><label>Precio de venta / reserva (€)</label><input id="eo-sp" type="number" value="${op.sellPrice||''}" min="0"></div>
+    ${op.status==='sold'?`<div class="ff"><label>Fecha de venta</label><input id="eo-sd" type="date" value="${op.sellDate||''}"></div>`:'<div class="ff"></div>'}
+  </div>`:'<input type="hidden" id="eo-sp" value=""><input type="hidden" id="eo-sd" value="">'}
+  <div class="ff"><label>Notas</label><input id="eo-nt" value="${op.notes||''}" placeholder="Notas opcionales..."></div>
+  <div class="alert a-warn" style="margin-top:4px;margin-bottom:0">Edita con cuidado. Los cambios afectan directamente a los cálculos y liquidaciones.</div>
+  <div class="mf">
+    <button class="btn btn-ghost" onclick="cm()">Cancelar</button>
+    <button class="btn btn-primary" onclick="seo('${oid}')">Guardar cambios</button>
+  </div>`);
+}
+
+function seo(oid){
+  const op=DB.ops.find(o=>o.id===oid);
+  const marca=document.getElementById('eo-mk').value.trim();
+  const modelo=document.getElementById('eo-ml').value.trim();
+  const bd=document.getElementById('eo-bd').value;
+  const bp=parseFloat(document.getElementById('eo-bp').value);
+  if(!marca||!modelo||!bd||!bp){alert('Marca, modelo, fecha y precio son obligatorios');return;}
+  // Update investor assignment if changed
+  const newIid=document.getElementById('eo-iv').value;
+  if(newIid){
+    const newC=gic(newIid);
+    if(newC&&newC.id!==op.contractId) op.contractId=newC.id;
+  }
+  op.marca=marca;
+  op.modelo=modelo;
+  op.matricula=document.getElementById('eo-mt').value.trim();
+  op.version=document.getElementById('eo-yr').value.trim();
+  op.vehicle=`${marca} ${modelo}${op.matricula?' · '+op.matricula:''}`;
+  op.buyDate=bd;
+  op.buyPrice=bp;
+  op.notes=document.getElementById('eo-nt').value;
+  op.status=document.getElementById('eo-st').value;
+  const spVal=parseFloat(document.getElementById('eo-sp').value);
+  if(spVal) op.sellPrice=spVal;
+  const sdVal=document.getElementById('eo-sd').value;
+  if(sdVal) op.sellDate=sdVal;
+  sdb();cm();sp(AP);
+}
+
+function mdo(oid){
+  const op=DB.ops.find(o=>o.id===oid);
+  const liqUsed=isLiq(oid);
+  om(`<div class="mt2" style="color:var(--red)">Eliminar vehículo</div>
+  <div style="text-align:center;padding:20px 0 10px">
+    <div style="font-size:36px;margin-bottom:12px">🗑</div>
+    <div style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:8px">${vLabel(op)}</div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:4px">Comprado el ${fmtD(op.buyDate)} · ${fmt(op.buyPrice)}</div>
+    <div style="margin-top:16px">
+      <span class="badge b-${op.status}" style="font-size:12px;padding:4px 12px">${op.status==='active'?'Activo':op.status==='reserved'?'Reservado':'Vendido'}</span>
+    </div>
+  </div>
+  ${liqUsed?`<div class="alert a-warn">⚠ Este vehículo ya tiene una liquidación emitida. Eliminarlo no borrará la liquidación, pero desvinculará el vehículo de ella.</div>`:''}
+  <div class="alert a-danger">Esta acción es <strong>irreversible</strong>. Se eliminará permanentemente el registro de este vehículo y todos sus datos.</div>
+  <div class="mf">
+    <button class="btn btn-ghost" onclick="cm()">Cancelar — no eliminar</button>
+    <button class="btn btn-sm" style="background:var(--red);color:#fff;border:none;padding:8px 18px;border-radius:var(--radius-sm);font-weight:700;cursor:pointer;font-family:inherit" onclick="deo('${oid}')">Sí, eliminar vehículo</button>
+  </div>`);
+}
+
+function deo(oid){
+  DB.ops=DB.ops.filter(o=>o.id!==oid);
+  sdb();cm();sp(AP);
+}
+function filterRows(tableId,q){
+  const tbl=document.getElementById(tableId);if(!tbl)return;
+  const t=q.toLowerCase().trim();
+  tbl.querySelectorAll('tbody tr').forEach(tr=>{
+    if(!t){tr.style.display='';return;}
+    const mk=tr.dataset.marca||'',ml=tr.dataset.modelo||'',mt=tr.dataset.matricula||'';
+    tr.style.display=(mk.includes(t)||ml.includes(t)||mt.includes(t))?'':'none';
+  });
+}
+function filterVehicles(iid){filterRows('veh-table-'+iid,document.getElementById('veh-search-'+iid).value);}
+function filterOpsAdmin(q){filterRows('ops-admin-table',q);}
+function filterInvOps(q){filterRows('inv-ops-table',q);}
+
+// ── INIT ──────────────────────────────────────────────────
+async function startApp(){
+  await loadDB();
+  document.getElementById('login-screen').style.display='flex';
+}
+
+(function(){
+  const cfg=cfgGet();
+  if(cfg&&cfg.url&&cfg.key){
+    initSB(cfg.url,cfg.key);
+    startApp();
+  } else {
+    document.getElementById('setup-screen').classList.remove('hidden');
+  }
+})();
+</script>
+</body>
+</html>
