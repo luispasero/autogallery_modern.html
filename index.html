@@ -1084,15 +1084,11 @@ async function startApp(){
   document.getElementById('login-screen').style.display='flex';
 }
 
-(function(){
-  const cfg=cfgGet();
-  if(cfg&&cfg.url&&cfg.key){
-    initSB(cfg.url,cfg.key);
-    startApp();
-  } else {
-    document.getElementById('setup-screen').classList.remove('hidden');
-  }
-})();
+const SUPA_URL = 'https://tofavwmmcznmzjwhcclw.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRvZmF2d21tY3pubXpqd2hjY2x3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYzOTc1ODEsImV4cCI6MjA4MTk3MzU4MX0.fdFFnEJ7G5DDeb3TT32tSFWwx8YJHtpAtKXdNoEvEnI';
+
+initSB(SUPA_URL, SUPA_KEY);
+startApp();
 </script>
 </body>
 </html>
